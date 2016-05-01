@@ -1,0 +1,131 @@
+-- Piotr Majcherczyk
+-- pm334695
+
+entrypoints TranslationUnit;
+
+
+Program. TranslationUnit ::= [ExternalDecl] ;
+
+(:[]). [ExternalDecl] ::= ExternalDecl ;
+(:).   [ExternalDecl] ::= ExternalDecl [ExternalDecl] ;
+
+GlobalFunction. ExternalDecl ::= FunctionDef ;
+GlobalDecl.     ExternalDecl ::= Decl ;
+
+
+(:[]). [Ident] ::= Ident ;
+(:).   [Ident] ::= Ident "," [Ident] ;
+
+
+FunctionArgsP. FunctionDef ::= TypeSpec Ident "(" [Arg] ")" CompoundStmt ;
+FunctionArgs.  FunctionDef ::= TypeSpec Ident "(" [Arg] ")" Stmt ";" ;
+FunctionProcP. FunctionDef ::= TypeSpec Ident "(" ")" CompoundStmt ;
+FunctionProc.  FunctionDef ::= TypeSpec Ident "(" ")" Stmt ";" ;
+
+(:[]).  [Arg] ::= Arg ;
+(:).    [Arg] ::= Arg "," [Arg] ;
+
+ArgVal. Arg ::= TypeSpec Ident ;
+ArgRef. Arg ::= TypeSpec "&" Ident ;
+
+
+DeclDefault. Decl ::= TypeSpec [Ident] ";" ;
+DeclDefine.  Decl ::= TypeSpec Ident "=" Exp ";" ;
+
+
+TypeBool.   TypeSpec ::= "Bool" ;
+TypeInt.    TypeSpec ::= "Int" ;
+TypeString. TypeSpec ::= "String" ;
+TypeVoid.   TypeSpec ::= "Void" ;
+
+
+(:[]). [Stmt] ::= Stmt ;
+(:).   [Stmt] ::= Stmt [Stmt] ;
+
+StmtExp.       Stmt ::= Exp ";" ;
+StmtCompound.  Stmt ::= CompoundStmt ;
+StmtSelection. Stmt ::= SelectionStmt ;
+StmtIteration. Stmt ::= IterationStmt ;
+StmtReturn.    Stmt ::= "return" Exp ";" ;
+StmtDecl.      Stmt ::= Decl ;
+
+
+StmtCompoundList.  CompoundStmt ::= "{" [Stmt] "}" ;
+StmtCompoundEmpty. CompoundStmt ::= "{" "}" ;
+
+StmtIf.     SelectionStmt ::= "if" Exp CompoundStmt ;
+StmtIfElse. SelectionStmt ::= "if" Exp CompoundStmt "else" CompoundStmt ;
+
+-- Had to do it this way...
+
+StmtWhile. IterationStmt ::= "while" Exp CompoundStmt ;
+StmtFor1.  IterationStmt ::= "for" Exp "," Exp "," Exp CompoundStmt ;
+StmtFor2.  IterationStmt ::= "for" Exp "," Exp "," CompoundStmt ;
+StmtFor3.  IterationStmt ::= "for" Exp "," "," Exp CompoundStmt ;
+StmtFor4.  IterationStmt ::= "for" "," Exp "," Exp CompoundStmt ;
+StmtFor5.  IterationStmt ::= "for" "," "," Exp CompoundStmt ;
+StmtFor6.  IterationStmt ::= "for" "," Exp "," CompoundStmt ;
+StmtFor7.  IterationStmt ::= "for" Exp "," "," CompoundStmt ;
+StmtFor8.  IterationStmt ::= "for" "," "," CompoundStmt ;
+
+
+(:[]). [Exp2] ::= Exp2 ;
+(:).   [Exp2] ::= Exp2 "," [Exp2] ;
+
+ExpAssign.    Exp2 ::= Exp13 AssignmentOp Exp2 ;
+ExpCondition. Exp3 ::= Exp4 "?" Exp ":" Exp3 ;
+ExpLogOr.     Exp4 ::= Exp4 "||" Exp5 ;
+ExpLogAnd.    Exp5 ::= Exp5 "&&" Exp6 ;
+ExpEq.        Exp7 ::= Exp7 "==" Exp8 ;
+ExpNeq.       Exp7 ::= Exp7 "!=" Exp8 ;
+ExpLt.        Exp8 ::= Exp8 "<" Exp9 ;
+ExpGt.        Exp8 ::= Exp8 ">" Exp9 ;
+ExpLe.        Exp8 ::= Exp8 "<=" Exp9 ;
+ExpGe.        Exp8 ::= Exp8 ">=" Exp9 ;
+ExpAdd.       Exp10 ::= Exp10 "+" Exp11 ;
+ExpSub.       Exp10 ::= Exp10 "-" Exp11 ;
+ExpMul.       Exp11 ::= Exp11 "*" Exp12 ;
+ExpDiv.       Exp11 ::= Exp11 "/" Exp12 ;
+ExpMod.       Exp11 ::= Exp11 "%" Exp12 ;
+
+ExpUnaryInc.  Exp13 ::= "++" Exp13 ;
+ExpUnaryDec.  Exp13 ::= "--" Exp13 ;
+ExpPostInc.   Exp13 ::= UnaryOp Exp12 ;
+ExpFuncP.     Exp14 ::= Exp14 "(" ")" ;
+ExpFuncPArgs. Exp14 ::= Exp14 "(" [Exp2] ")" ;
+
+ExpConstant. Exp15 ::= Constant ;
+
+ExpId.     Constant ::= Ident ;
+ExpInt.    Constant ::= Integer ;
+ExpBool.   Constant ::= BoolConstant ;
+ExpString. Constant ::= String ;
+
+coercions Exp 15 ;
+
+
+OpUnaryRef. UnaryOp ::= "&" ;
+OpUnaryPtr. UnaryOp ::= "*" ;
+OpUnaryPos. UnaryOp ::= "+" ;
+OpUnaryNeg. UnaryOp ::= "-" ;
+OpUnaryNot. UnaryOp ::= "!" ;
+OpUnaryFlp. UnaryOp ::= "~" ;
+
+
+OpAssign.    AssignmentOp ::= "=" ;
+OpAssignMul. AssignmentOp ::= "*=" ;
+OpAssignDiv. AssignmentOp ::= "/=" ;
+OpAssignMod. AssignmentOp ::= "%=" ;
+OpAssignAdd. AssignmentOp ::= "+=" ;
+OpAssignSub. AssignmentOp ::= "-=" ;
+OpAssignAnd. AssignmentOp ::= "&=" ;
+OpAssignXor. AssignmentOp ::= "^=" ;
+OpAssignOr.  AssignmentOp ::= "|=" ;
+
+
+ConstantTrue.  BoolConstant ::= "true" ;
+ConstantFalse. BoolConstant ::= "false" ;
+
+
+comment "/*" "*/" ;
+comment "//" ;

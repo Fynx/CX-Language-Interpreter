@@ -1,0 +1,14 @@
+String intToStr(Int a)
+{
+	return "42";
+}
+
+Int f(Int a)
+{
+	Int i;
+	String s = "kaka";
+	print(s);
+	for i = 0, i < 5, ++i {
+		print(intToStr(i));
+	}
+}
