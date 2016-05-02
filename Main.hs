@@ -27,6 +27,7 @@ import ErrM
 
 -- Debug
 
+
 type Verbosity = Int
 
 putStrV :: Verbosity -> String -> IO ()
@@ -43,21 +44,42 @@ showTree v tree = do
 
 type ParseFun a = [Token] -> Err a
 
-type ES a = ExceptT String (StateT Env (IO)) a
+type ES a = ExceptT String (StateT Cont (IO)) a
 data Status = Success | Error String deriving (Eq, Show)
 
 
+--evalExp :: Exp -> DataType
+--evalExp _ = return (TInt 5)
+
+
+newLoc :: Store -> IO Loc
+newLoc s =
+    return $ (maximum $ k s) + 1 where
+        k s | null (keys s) = [0]
+            | otherwise     = keys s where
+            keys s = Map.keys s
+
+
+allocVar :: Ident -> DataType -> ES Status
+allocVar (Ident id) v = do
+    (env, store, fargs) <- lift get
+    loc <- lift.lift $ newLoc store
+    if Map.member (Ident id) env
+      then
+        throwError $ "Name " ++ id ++ " already exists."
+      else
+        lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs)
+    liftIO (putStrLn ("Variable " ++ id ++ " allocated"))
+    return Success
+
+
 execDecl :: Decl -> ES Status
-execDecl _ = return Success
---execDecl (DeclDefault t is) = do
---    env <- get
---    mapM_ put (Map.insert is (defaultValue t) env) --TODO check if already there
---    return Success
---execDecl (DeclDefault t i e) = do
---    env <- get
---    value <- defaultValue t--eval e
---    put (Map.insert
---    return Success 
+execDecl (DeclDefault t is) = do
+    mapM_ (flip allocVar (defaultValue t)) is
+    return Success
+execDecl (DeclDefine t i e) = do
+    allocVar i (defaultValue t)--(evalExp e)
+    return Success
 
 
 execFunctionDef :: FunctionDef -> ES Status
@@ -91,13 +113,15 @@ run v s = do
         Ok p -> do
             putStrLn "\nParse Successful!"
             showTree v p
-            res <- (runStateT (runExceptT $ execTranslationUnit p) Map.empty)
+            res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
             case res of
                 (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
-                (Right r, _) -> do
-                    print ("Env:", r)
+                (Right r, (cont, store, fargs)) -> do
+                    print ("Cont:  ", cont)
+                    print ("Store: ", store)
+                    print ("FArgs: ", fargs)
                     exitSuccess
 
 

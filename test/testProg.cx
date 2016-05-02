@@ -1,3 +1,5 @@
+Int k = 10;
+
 String intToStr(Int a)
 {
 	return "42";
