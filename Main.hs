@@ -48,9 +48,41 @@ type ES a = ExceptT String (StateT Cont (IO)) a
 data Status = Success | Error String deriving (Eq, Show)
 
 
---evalExp :: Exp -> DataType
---evalExp _ = return (TInt 5)
+-- Expressions
 
+constantType :: Constant -> DataType
+constantType (ExpId (Ident id)) = TString id
+constantType (ExpInt v) = TInt v
+constantType (ExpBool ConstantTrue) = TBool True
+constantType (ExpBool ConstantFalse) = TBool False
+constantType (ExpString s) = TString s
+
+
+evalExp :: Exp -> ES DataType
+evalExp (ExpAssign e1 op e2) = return TVoid
+evalExp (ExpCondition e1 e2 e3) = return TVoid
+evalExp (ExpLogOr e1 e2) = return (TBool False)
+evalExp (ExpLogAnd e1 e2) = return (TBool False)
+evalExp (ExpEq e1 e2) = return (TBool False)
+evalExp (ExpNeq e1 e2) = return (TBool False)
+evalExp (ExpLt e1 e2) = return (TBool False)
+evalExp (ExpGt e1 e2) = return (TBool False)
+evalExp (ExpLe e1 e2) = return (TBool False)
+evalExp (ExpGe e1 e2) = return (TBool False)
+evalExp (ExpAdd e1 e2) = return (TInt 0)
+evalExp (ExpSub e1 e2) = return (TInt 0)
+evalExp (ExpMul e1 e2) = return (TInt 0)
+evalExp (ExpDiv e1 e2) = return (TInt 0)
+evalExp (ExpMod e1 e2) = return (TInt 0)
+evalExp (ExpUnaryInc e) = return (TInt 0)
+evalExp (ExpUnaryDec e) = return (TInt 0)
+evalExp (ExpPostInc uop e) = return (TInt 0)
+evalExp (ExpFuncP f) = return TVoid
+evalExp (ExpFuncPArgs f args) = return TVoid
+evalExp (ExpConstant c) = return $ constantType c
+
+
+-- Declarations
 
 newLoc :: Store -> IO Loc
 newLoc s =
@@ -78,11 +110,25 @@ execDecl (DeclDefault t is) = do
     mapM_ (flip allocVar (defaultValue t)) is
     return Success
 execDecl (DeclDefine t i e) = do
-    allocVar i (defaultValue t)--(evalExp e)
+    v <- evalExp e
+    allocVar i v
     return Success
 
--- Functions
 
+-- Statements
+
+execStmt :: Stmt -> ES Status
+execStmt (StmtExp e) = do
+    evalExp e
+    return Success
+execStmt (StmtCompound s) = return Success--execCompoundStmt
+execStmt (StmtSelection s) = return Success--execSelectionStmt
+execStmt (StmtIteration s) = return Success--execIterationStmt
+execStmt (StmtReturn s) = return Success--execReturnStmt
+execStmt (StmtDecl s) = return Success--execDeclStmt
+
+
+-- Functions
 
 argTypes :: [Arg] -> [ArgType TypeSpec]
 argTypes a =
@@ -91,8 +137,8 @@ argTypes a =
         extractT l (ArgRef t id) = (Ref t):l
 
 
-allocFun :: Ident -> TypeSpec -> [Arg] -> ES Status
-allocFun (Ident id) t args = do
+allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
+allocFun (Ident id) t args stmt = do
     (env, store, fargs) <- lift get
     loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
@@ -101,19 +147,17 @@ allocFun (Ident id) t args = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc (TFun t) store,
-                    Map.insert loc (argTypes args) fargs)
+                    Map.insert loc (argTypes args, stmt) fargs)
     liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
     return Success
 
 
 execFunctionDef :: FunctionDef -> ES Status
 execFunctionDef (FunctionArgsP t id args cstmt) = do
-    allocFun id t args
-    --execCompoundStmt cstmt
+    allocFun id t args cstmt
     return Success
 execFunctionDef (FunctionArgs t id args stmt) = do
-    allocFun id t args
-    --execStmt cstmt
+    allocFun id t args (StmtCompoundList [stmt])
     return Success
 execFunctionDef (FunctionProcP t id cstmt) = execFunctionDef (FunctionArgsP t id [] cstmt)
 execFunctionDef (FunctionProc t id stmt) = execFunctionDef (FunctionArgs t id [] stmt)
@@ -141,8 +185,6 @@ run v s = do
     let ts = myLexer s in case pTranslationUnit ts of
         Bad e -> do
             putStrLn "\nParse Failed...\n"
-            putStrV v "Tokens:"
-            putStrV v $ show ts
             putStrLn e
             exitFailure
         Ok p -> do
@@ -156,7 +198,6 @@ run v s = do
                 (Right r, (env, store, fargs)) -> do
                     print ("Env:   ", env)
                     print ("Store: ", store)
-                    print ("FArgs: ", fargs)
                     exitSuccess
 
 

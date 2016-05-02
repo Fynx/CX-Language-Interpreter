@@ -28,8 +28,9 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
-type FunArgs = Map.Map Loc [ArgType TypeSpec]
+type FunArgs = Map.Map Loc ([ArgType TypeSpec], CompoundStmt)
 type Cont = (Env, Store, FunArgs)
+
 
 emptyCont :: Cont
 emptyCont = (Map.empty, Map.empty, Map.empty)
