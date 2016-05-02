@@ -14,7 +14,10 @@ data DataType =
     | TInt    Integer
     | TString String
     | TRef    DataType Loc
+    | TFun    TypeSpec
     deriving (Show)
+
+data ArgType a = Ref a | Var a deriving (Show)
 
 
 defaultValue :: TypeSpec -> DataType
@@ -25,7 +28,7 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
-type FunArgs = Map.Map Loc [DataType]
+type FunArgs = Map.Map Loc [ArgType TypeSpec]
 type Cont = (Env, Store, FunArgs)
 
 emptyCont :: Cont

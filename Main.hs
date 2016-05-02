@@ -69,7 +69,7 @@ allocVar (Ident id) v = do
         throwError $ "Name " ++ id ++ " already exists."
       else
         lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs)
-    liftIO (putStrLn ("Variable " ++ id ++ " allocated"))
+    liftIO $ putStrLn ("Variable " ++ id ++ " allocated")
     return Success
 
 
@@ -81,10 +81,45 @@ execDecl (DeclDefine t i e) = do
     allocVar i (defaultValue t)--(evalExp e)
     return Success
 
+-- Functions
+
+
+argTypes :: [Arg] -> [ArgType TypeSpec]
+argTypes a =
+    (foldl extractT [] a) where
+        extractT l (ArgVal t id) = (Var t):l
+        extractT l (ArgRef t id) = (Ref t):l
+
+
+allocFun :: Ident -> TypeSpec -> [Arg] -> ES Status
+allocFun (Ident id) t args = do
+    (env, store, fargs) <- lift get
+    loc <- lift.lift $ newLoc store
+    if Map.member (Ident id) env
+      then
+        throwError $ "Name " ++ id ++ " already exists."
+      else
+        lift $ put (Map.insert (Ident id) loc env,
+                    Map.insert loc (TFun t) store,
+                    Map.insert loc (argTypes args) fargs)
+    liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
+    return Success
+
 
 execFunctionDef :: FunctionDef -> ES Status
-execFunctionDef _ = return Success
+execFunctionDef (FunctionArgsP t id args cstmt) = do
+    allocFun id t args
+    --execCompoundStmt cstmt
+    return Success
+execFunctionDef (FunctionArgs t id args stmt) = do
+    allocFun id t args
+    --execStmt cstmt
+    return Success
+execFunctionDef (FunctionProcP t id cstmt) = execFunctionDef (FunctionArgsP t id [] cstmt)
+execFunctionDef (FunctionProc t id stmt) = execFunctionDef (FunctionArgs t id [] stmt)
 
+
+-- Main program
 
 execExternalDecl :: ExternalDecl -> ES Status
 execExternalDecl (GlobalFunction f) = (execFunctionDef f)
@@ -118,8 +153,8 @@ run v s = do
                 (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
-                (Right r, (cont, store, fargs)) -> do
-                    print ("Cont:  ", cont)
+                (Right r, (env, store, fargs)) -> do
+                    print ("Env:   ", env)
                     print ("Store: ", store)
                     print ("FArgs: ", fargs)
                     exitSuccess
