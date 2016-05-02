@@ -1,0 +1,13 @@
+dist
+
+AbsCX.hs
+CX.cf
+DocCX.txt
+ErrM.hs
+LexCX.hs
+LexCX.x
+ParCX.hs
+ParCX.y
+PrintCX.hs
+SkelCX.hs
+TestCX.hs
