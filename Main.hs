@@ -41,7 +41,6 @@ showTree v tree = do
 
 -- Interpreter
 
-
 type ParseFun a = [Token] -> Err a
 
 type ES a = ExceptT String (StateT Cont (IO)) a
@@ -50,36 +49,57 @@ data Status = Success | Error String deriving (Eq, Show)
 
 -- Expressions
 
-constantType :: Constant -> DataType
-constantType (ExpId (Ident id)) = TString id
-constantType (ExpInt v) = TInt v
-constantType (ExpBool ConstantTrue) = TBool True
-constantType (ExpBool ConstantFalse) = TBool False
-constantType (ExpString s) = TString s
+evalExp' :: Exp -> (DataType -> DataType) -> ES DataType
+evalExp' e f = do
+    v <- evalExp e
+    return $ f v
+
+
+evalExp'' :: Exp -> Exp -> (DataType -> DataType -> DataType) -> ES DataType
+evalExp'' e1 e2 f = do
+    v1 <- evalExp e1
+    v2 <- evalExp e2
+    return $ f v1 v2
 
 
 evalExp :: Exp -> ES DataType
-evalExp (ExpAssign e1 op e2) = return TVoid
-evalExp (ExpCondition e1 e2 e3) = return TVoid
-evalExp (ExpLogOr e1 e2) = return (TBool False)
-evalExp (ExpLogAnd e1 e2) = return (TBool False)
-evalExp (ExpEq e1 e2) = return (TBool False)
-evalExp (ExpNeq e1 e2) = return (TBool False)
-evalExp (ExpLt e1 e2) = return (TBool False)
-evalExp (ExpGt e1 e2) = return (TBool False)
-evalExp (ExpLe e1 e2) = return (TBool False)
-evalExp (ExpGe e1 e2) = return (TBool False)
-evalExp (ExpAdd e1 e2) = return (TInt 0)
-evalExp (ExpSub e1 e2) = return (TInt 0)
-evalExp (ExpMul e1 e2) = return (TInt 0)
-evalExp (ExpDiv e1 e2) = return (TInt 0)
-evalExp (ExpMod e1 e2) = return (TInt 0)
-evalExp (ExpUnaryInc e) = return (TInt 0)
-evalExp (ExpUnaryDec e) = return (TInt 0)
-evalExp (ExpPostInc uop e) = return (TInt 0)
-evalExp (ExpFuncP f) = return TVoid
-evalExp (ExpFuncPArgs f args) = return TVoid
-evalExp (ExpConstant c) = return $ constantType c
+evalExp (ExpAssign e1 op e2) = return TVoid --TODO
+evalExp (ExpCondition e1 e2 e3) = do
+    (TBool c) <- evalExp e1
+    if c
+      then evalExp e2
+      else evalExp e3
+evalExp (ExpLogOr e1 e2) = evalExp'' e1 e2 elogor
+evalExp (ExpLogAnd e1 e2) = evalExp'' e1 e2 elogand
+evalExp (ExpEq e1 e2) = evalExp'' e1 e2 eeq
+evalExp (ExpNeq e1 e2) = evalExp'' e1 e2 eneq
+evalExp (ExpLt e1 e2) = evalExp'' e1 e2 elt
+evalExp (ExpGt e1 e2) = evalExp'' e1 e2 egt
+evalExp (ExpLe e1 e2) = evalExp'' e1 e2 ele
+evalExp (ExpGe e1 e2) = evalExp'' e1 e2 ege
+evalExp (ExpAdd e1 e2) = evalExp'' e1 e2 eadd
+evalExp (ExpSub e1 e2) = evalExp'' e1 e2 esub
+evalExp (ExpMul e1 e2) = evalExp'' e1 e2 emul
+evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
+evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
+evalExp (ExpUnaryInc e) = evalExp' e einc
+evalExp (ExpUnaryDec e) = evalExp' e edec
+--    v <- evalExp e
+--    return $ einc v
+evalExp (ExpPostInc uop e) = return TVoid
+evalExp (ExpFuncP f) = return TVoid--do
+--    execFun f []
+--    return (TInt 0) --TODO return value
+evalExp (ExpFuncPArgs f args) = return TVoid--do
+--    execFun f args
+--    return (TInt 0) --TODO same here
+evalExp (ExpConstant c) = return $ constantType c where
+    constantType :: Constant -> DataType
+    constantType (ExpId (Ident id)) = TString id
+    constantType (ExpInt v) = TInt v
+    constantType (ExpBool ConstantTrue) = TBool True
+    constantType (ExpBool ConstantFalse) = TBool False
+    constantType (ExpString s) = TString s
 
 
 -- Declarations
@@ -205,6 +225,10 @@ argTypes a =
     (foldl extractT [] a) where
         extractT l (ArgVal t id) = (Var t):l
         extractT l (ArgRef t id) = (Ref t):l
+
+
+execFun :: Ident -> [DataType] -> DataType
+execFun _ _ = TVoid --TODO
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
