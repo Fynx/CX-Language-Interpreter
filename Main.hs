@@ -117,15 +117,85 @@ execDecl (DeclDefine t i e) = do
 
 -- Statements
 
+
+execCompoundStmt :: CompoundStmt -> ES Status
+execCompoundStmt (StmtCompoundList l) = do
+    mapM_ execStmt l
+    return Success
+execCompoundStmt StmtCompoundEmpty = return Success
+
+
+execSelectionStmt :: SelectionStmt -> ES Status
+execSelectionStmt (StmtIf e s) = do
+    (TBool c) <- evalExp e
+    if c
+      then do
+        execCompoundStmt s
+        return Success
+      else
+        return Success
+execSelectionStmt (StmtIfElse e s1 s2) = do
+    (TBool c) <- evalExp e
+    if c
+      then execCompoundStmt s1
+      else execCompoundStmt s2
+    return Success
+
+
+--TODO move it!
+emptyExp :: Exp
+emptyExp = ExpConstant $ ExpBool ConstantTrue
+
+
+execIterationStmt :: IterationStmt -> ES Status
+execIterationStmt (StmtWhile e s) = do
+    (TBool v) <- evalExp e
+    if v
+      then do
+        execCompoundStmt s
+        execIterationStmt (StmtWhile e s)
+      else
+        return Success
+execIterationStmt (StmtFor1 epre cond epost s) = do
+    _ <- evalExp epre
+    execIterationStmt $ StmtWhile cond (whileBody s epost) where
+        whileBody StmtCompoundEmpty s = StmtCompoundList [StmtExp s]
+        whileBody (StmtCompoundList ss) s = StmtCompoundList $ (StmtExp s):ss
+execIterationStmt (StmtFor2 epre cond s) =
+    execIterationStmt $ StmtFor1 epre cond emptyExp s
+execIterationStmt (StmtFor3 epre epost s) =
+    execIterationStmt $ StmtFor1 epre emptyExp epost s
+execIterationStmt (StmtFor4 cond epost s) =
+    execIterationStmt $ StmtFor1 emptyExp cond epost s
+execIterationStmt (StmtFor5 epost s) =
+    execIterationStmt $ StmtFor1 emptyExp emptyExp epost s
+execIterationStmt (StmtFor6 cond s) =
+    execIterationStmt $ StmtFor1 emptyExp cond emptyExp s
+execIterationStmt (StmtFor7 epre s) =
+    execIterationStmt $ StmtFor1 epre emptyExp emptyExp s
+execIterationStmt (StmtFor8 s) =
+    execIterationStmt $ StmtFor1 emptyExp emptyExp emptyExp s
+
+
+execReturnStmt :: Exp -> ES Status
+execReturnStmt e = do
+    evalExp e -- TODO set return value
+    return Success
+
+
+execDeclStmt :: Decl -> ES Status
+execDeclStmt d = execDecl d
+
+
 execStmt :: Stmt -> ES Status
 execStmt (StmtExp e) = do
     evalExp e
     return Success
-execStmt (StmtCompound s) = return Success--execCompoundStmt
-execStmt (StmtSelection s) = return Success--execSelectionStmt
-execStmt (StmtIteration s) = return Success--execIterationStmt
-execStmt (StmtReturn s) = return Success--execReturnStmt
-execStmt (StmtDecl s) = return Success--execDeclStmt
+execStmt (StmtCompound s) = execCompoundStmt s
+execStmt (StmtSelection s) = execSelectionStmt s
+execStmt (StmtIteration s) = execIterationStmt s
+execStmt (StmtReturn e) = execReturnStmt e
+execStmt (StmtDecl d) = execDeclStmt d
 
 
 -- Functions
