@@ -114,13 +114,13 @@ newLoc s =
 
 allocVar :: Ident -> DataType -> ES Status
 allocVar (Ident id) v = do
-    (env, store, fargs) <- lift get
+    (env, store, fargs, local) <- lift get
     loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
       else
-        lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs)
+        lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs, local)
     liftIO $ putStrLn ("Variable " ++ id ++ " allocated")
     return Success
 
@@ -227,13 +227,26 @@ argTypes a =
         extractT l (ArgRef t id) = (Ref t):l
 
 
-execFun :: Ident -> [DataType] -> DataType
-execFun _ _ = TVoid --TODO
+execFun :: Ident -> [DataType] -> ES DataType
+execFun fname args = do
+    (env, store, fargs, _) <- lift get
+    case Map.lookup fname env of
+        Nothing   -> throwError $ "Unknown function name: " ++ (show fname)
+        Just floc -> do
+            case Map.lookup floc fargs of
+                Nothing        -> throwError $ "Internal function error: " ++ (show fname)
+                Just (_, stmt) -> do
+                    execCompoundStmt stmt -- TODO var cover/alloc
+                    (env', store', fargs', ret') <- lift get
+                    lift $ put (env, store, fargs, TVoid)
+                    case ret' of
+                        TVoid     -> throwError $ "Failed to obtain return value from: " ++ (show fname)
+                        otherwise -> return ret' -- TODO check if return value = TVoid
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
 allocFun (Ident id) t args stmt = do
-    (env, store, fargs) <- lift get
+    (env, store, fargs, local) <- lift get
     loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
       then
@@ -241,7 +254,8 @@ allocFun (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc (TFun t) store,
-                    Map.insert loc (argTypes args, stmt) fargs)
+                    Map.insert loc (argTypes args, stmt) fargs,
+                    local)
     liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
     return Success
 
@@ -289,7 +303,7 @@ run v s = do
                 (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
-                (Right r, (env, store, fargs)) -> do
+                (Right r, (env, store, fargs, loc)) -> do
                     print ("Env:   ", env)
                     print ("Store: ", store)
                     exitSuccess

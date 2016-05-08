@@ -18,6 +18,11 @@ data DataType =
     deriving (Show)
 
 
+unref :: DataType -> DataType
+unref (TRef t l) = unref t
+unref v = v
+
+
 elogor :: DataType -> DataType -> DataType
 elogor (TBool v1) (TBool v2) = TBool (v1 || v2)
 
@@ -79,8 +84,9 @@ defaultValue TypeString = (TString "")
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
 type FunArgs = Map.Map Loc ([ArgType TypeSpec], CompoundStmt)
-type Cont = (Env, Store, FunArgs)
+type Local = DataType
+type Cont = (Env, Store, FunArgs, Local)
 
 
 emptyCont :: Cont
-emptyCont = (Map.empty, Map.empty, Map.empty)
+emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
