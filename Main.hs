@@ -62,8 +62,31 @@ evalExp'' e1 e2 f = do
     return $ f v1 v2
 
 
+evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
+evalAssignOp v1 v2 OpAssign = v2
+evalAssignOp v1 v2 OpAssignMul = emul v1 v2
+evalAssignOp v1 v2 OpAssignDiv = ediv v1 v2
+evalAssignOp v1 v2 OpAssignMod = emod v1 v2
+evalAssignOp v1 v2 OpAssignAdd = eadd v1 v2
+evalAssignOp v1 v2 OpAssignSub = esub v1 v2
+evalAssignOp v1 v2 OpAssignAnd = elogand v1 v2
+evalAssignOp v1 v2 OpAssignXor = elogxor v1 v2
+evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
+
+
 evalExp :: Exp -> ES DataType
-evalExp (ExpAssign e1 op e2) = return TVoid --TODO
+evalExp (ExpAssign (ExpConstant (ExpId (Ident id))) op e2) = do
+    v1 <- evalExp $ ExpConstant $ ExpId $ Ident id
+    v2 <- evalExp e2
+    --TODO references
+    (env, store, fargs, local) <- lift get
+    case Map.lookup (Ident id) env of
+        Nothing -> throwError $ "Unknown variable: " ++ id
+        Just vloc -> do
+            lift $ put (env, Map.insert vloc v store, fargs, local)
+            return v
+            where
+                v = evalAssignOp v1 v2 op
 evalExp (ExpCondition e1 e2 e3) = do
     (TBool c) <- evalExp e1
     if c

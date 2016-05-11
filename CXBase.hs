@@ -2,6 +2,7 @@ module CXBase where
 
 
 import qualified Data.Map as Map
+import Data.Bool
 
 import AbsCX
 
@@ -22,6 +23,9 @@ unref :: DataType -> DataType
 unref (TRef t l) = unref t
 unref v = v
 
+
+elogxor :: DataType -> DataType -> DataType
+elogxor (TBool v1) (TBool v2) = TBool $ (v1 && v2) || ((not v1) && (not v2))
 
 elogor :: DataType -> DataType -> DataType
 elogor (TBool v1) (TBool v2) = TBool (v1 || v2)

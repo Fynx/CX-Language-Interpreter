@@ -11,9 +11,9 @@ Int f(Int a)
 	Int i = 1 + 1;
 	String s = "kaka";
 	print(s);
-	//for i = 0, i < 5, ++i {
+	for i = 0, i < 5, i += 1 {
 		print(magicInt(i));
-	//}
+	}
 	return i;
 }
 
