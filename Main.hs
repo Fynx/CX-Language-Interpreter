@@ -6,7 +6,7 @@ module Main where
 
 import System.IO (stdin, hGetContents)
 import System.Environment (getArgs, getProgName)
-import System.Exit-- (exitFailure, exitSuccess, exitWith)
+import System.Exit
 
 import Control.Monad.Except
 import Control.Monad.Trans.State
@@ -116,6 +116,14 @@ newLoc s =
             keys s = Map.keys s
 
 
+doAllocVar :: Ident -> DataType -> ES Status
+doAllocVar (Ident id) v = do
+    (env, store, fargs, local) <- lift get
+    loc <- lift.lift $ newLoc store
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs, local)
+    return Success
+
+
 allocVar :: Ident -> DataType -> ES Status
 allocVar (Ident id) v = do
     (env, store, fargs, local) <- lift get
@@ -124,9 +132,23 @@ allocVar (Ident id) v = do
       then
         throwError $ "Name " ++ id ++ " already exists."
       else
-        lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs, local)
+        doAllocVar (Ident id) v
     liftIO $ putStrLn ("Variable " ++ id ++ " allocated")
     return Success
+
+
+-- These functions is supposed to be called with lists of exact same length.
+allocVars :: [Ident] -> [DataType] -> ES Status
+allocVars [] [] = return Success
+allocVars (id:ids) (v:vs) = do
+    allocVar id v
+    allocVars ids vs
+
+forceAllocVars :: [Ident] -> [DataType] -> ES Status
+forceAllocVars [] [] = return Success
+forceAllocVars (id:ids) (v:vs) = do
+    doAllocVar id v
+    forceAllocVars ids vs
 
 
 execDecl :: Decl -> ES Status
@@ -234,15 +256,9 @@ findFun id = do
         Nothing -> throwError $ "Unknown function name: " ++ (show id)
         Just floc -> do
             case Map.lookup floc fargs of
-                Nothing        -> throwError $ "Internal function error: " ++ (show id)
+                Nothing ->
+                    throwError $ "Internal function error: " ++ (show id)
                 Just (_, stmt) -> return stmt
-
-
-argTypes :: [Arg] -> [ArgType TypeSpec]
-argTypes a =
-    (foldl extractT [] a) where
-        extractT l (ArgVal t id) = (Var t):l
-        extractT l (ArgRef t id) = (Ref t):l
 
 
 dataTypeToString :: DataType -> String
@@ -251,6 +267,13 @@ dataTypeToString (TBool v) = show v
 dataTypeToString (TInt v) = show v
 dataTypeToString (TString s) = s
 dataTypeToString (TRef t l) = dataTypeToString $ unref (TRef t l)
+
+
+allocArgs :: [Arg] -> [DataType] -> ES Status
+allocArgs args vs =
+    forceAllocVars (map extractId args) vs where
+        extractId (ArgVal t id) = id
+-- TODO ref
 
 
 --valueToString :: Exp -> ES String
@@ -279,8 +302,11 @@ execFun (Ident fname) args = do
                 Success -> return TVoid --TODO generalise
         Just floc -> do
             case Map.lookup floc fargs of
-                Nothing        -> throwError $ "Internal function error: " ++ fname
-                Just (_, stmt) -> do
+                Nothing -> throwError $ "Internal function error: " ++ fname
+                Just (argl, stmt) -> do
+                    if length argl /= length args
+                        then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
+                        else allocArgs argl args
                     execCompoundStmt stmt -- TODO var cover/alloc
                     (env', store', fargs', ret') <- lift get
                     lift $ put (env, store', fargs, TVoid)
@@ -299,7 +325,7 @@ allocFun (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc (TFun t) store,
-                    Map.insert loc (argTypes args, stmt) fargs,
+                    Map.insert loc (args, stmt) fargs,
                     local)
     liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
     return Success

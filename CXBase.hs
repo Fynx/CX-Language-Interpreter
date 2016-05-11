@@ -72,9 +72,6 @@ edec :: DataType -> DataType
 edec (TInt v) = TInt (v - 1)
 
 
-data ArgType a = Ref a | Var a deriving (Show)
-
-
 defaultValue :: TypeSpec -> DataType
 defaultValue TypeBool   = (TBool False)
 defaultValue TypeInt    = (TInt 0)
@@ -83,7 +80,7 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
-type FunArgs = Map.Map Loc ([ArgType TypeSpec], CompoundStmt)
+type FunArgs = Map.Map Loc ([Arg], CompoundStmt)
 type Local = DataType
 type Cont = (Env, Store, FunArgs, Local)
 

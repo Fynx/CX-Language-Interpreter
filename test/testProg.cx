@@ -7,13 +7,14 @@ String magicInt(Int a)
 
 Int f(Int a)
 {
-	Int i;
+	print("Argument a = ", a);
+	Int i = 1 + 1;
 	String s = "kaka";
 	print(s);
 	//for i = 0, i < 5, ++i {
 		print(magicInt(i));
 	//}
-	return 4;
+	return i;
 }
 
 Int main()
