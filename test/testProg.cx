@@ -1,25 +1,54 @@
 Int k = 10;
 
-String magicInt(Int a)
+String magicInt()
 {
-	return "42";
+	/** Function with string return value. */
+	return "magicString";
 }
 
+Int multByTwo(Int a)
+{
+	print("Entered function 'multByTwo' with arg a = ", a);
+	return a * 2;
+}
+
+/** Passing references doesn't work yet. */
 Int f(Int a)
 {
-	print("Argument a = ", a);
-	Int i = 1 + 1;
-	String s = "kaka";
-	print(s);
+	print("Entering function f");
+	/** Variable scope visibility, passing args to function. */
+	print("arg a = ", a, " (passed by value, references don't work yet.)");
+	
+	Int x = 1 + 1;
+	print("Initialised with exp 'Int x = 1 + 1', x = ", x);
+	
+	String s = "some string";
+	print("Initialised 'String s' = '", s, "'");
+	s = "other string";
+	print("Changed value of s to '", s, "'");
+	
+	print();
+	print("Entering for-loop with 'i' as the counter, set to 0.");
+	print("Upper-bound value of counter = 5.");
+	print("Incrementation with 'i += 1', unary operators not implemented yet.");
+	print();
+	Int i;
 	for i = 0, i < 5, i += 1 {
-		print(magicInt(i));
+		print("Return value of function 'multByTwo' with arg = ", i, ": ", multByTwo(i));
 	}
-	return i;
+	
+	print("Loop and conditional statements scopes not working yet, either.");
+	print("Exit function f with return value = 4 (because why not).");
+	return 4;
 }
 
 Int main()
 {
+	print("Global variable k = ", k);
+	print("Assigning a <- f(5)");
 	Int a = f(5);
-	print(a, "lmao");
+	print();
+	print("Assigned a = ", a);
+	/** Like in C, main has required return value. This is intentional. */
 	return 0;
 }

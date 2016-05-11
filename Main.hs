@@ -299,17 +299,12 @@ allocArgs args vs =
 -- TODO ref
 
 
---valueToString :: Exp -> ES String
---valueToString e = do
---    v <- evalExp e
---    return dataTypeToString
-
-
 execBuiltinFun :: Ident -> [DataType] -> ES Status
 execBuiltinFun (Ident s) args =
     case s of
         "print"   -> do
-            liftIO $ mapM_ (putStrLn . dataTypeToString) args
+            liftIO $ mapM_ (putStr . dataTypeToString) args
+            liftIO $ putStrLn ""
             return Success
         otherwise -> throwError $ "Unknown built-in function name: " ++ s
 
@@ -392,15 +387,15 @@ run v s = do
         Ok p -> do
             putStrLn "\nParse Successful!"
             showTree v p
+            putStrLn "Collecting global names, type checking not implemented yet."
             res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
             case res of
                 (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
                 (Right r, (env, store, fargs, loc)) -> do
-                    print ("Env:   ", env)
-                    print ("Store: ", store)
-                    print ("Execute main program...")
+                    putStrLn ""
+                    putStrLn "Execute main program..."
                     case Map.lookup (Ident "main") env of
                         Nothing -> print ("'main' function not found.")
                         Just _  -> do
@@ -430,8 +425,8 @@ usage = do
         [ "usage: Call with one of the following argument combinations:"
         , "  --help          Display this help message."
         , "  (no arguments)  Parse stdin verbosely."
-        , "  (files)         Parse content of files verbosely."
-        , "  -s (files)      Silent mode. Parse content of files silently."
+        , "  -v (files)      Parse content of files verbosely."
+        , "  -s (files)      Silent mode. Parse content of files silently (default)."
         ]
     exitFailure
 
@@ -442,4 +437,5 @@ main = do
         ["--help"] -> usage
         []         -> hGetContents stdin >>= run 2
         "-s":fs    -> mapM_ (runFile 0) fs
-        fs         -> mapM_ (runFile 2) fs
+        "-v":fs    -> mapM_ (runFile 2) fs
+        fs         -> mapM_ (runFile 0) fs
