@@ -199,7 +199,9 @@ execIterationStmt (StmtFor8 s) =
 
 execReturnStmt :: Exp -> ES Status
 execReturnStmt e = do
-    evalExp e -- TODO set return value
+    v <- evalExp e
+    (env, store, fargs, _) <- lift get
+    lift $ put $ (env, store, fargs, v)
     return Success
 
 
@@ -238,10 +240,10 @@ execFun fname args = do
                 Just (_, stmt) -> do
                     execCompoundStmt stmt -- TODO var cover/alloc
                     (env', store', fargs', ret') <- lift get
-                    lift $ put (env, store, fargs, TVoid)
+                    lift $ put (env, store', fargs, TVoid)
                     case ret' of
                         TVoid     -> throwError $ "Failed to obtain return value from: " ++ (show fname)
-                        otherwise -> return ret' -- TODO check if return value = TVoid
+                        otherwise -> return ret'
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
@@ -306,7 +308,12 @@ run v s = do
                 (Right r, (env, store, fargs, loc)) -> do
                     print ("Env:   ", env)
                     print ("Store: ", store)
-                    exitSuccess
+                    print ("Execute main program...")
+                    case Map.lookup (Ident "main") env of
+                        Nothing -> print ("'main' function not found.")
+                        Just _  -> do
+                            runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
+                            exitSuccess
 
 
 -- Main
