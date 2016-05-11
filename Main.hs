@@ -84,22 +84,19 @@ evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
 evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
 evalExp (ExpUnaryInc e) = evalExp' e einc
 evalExp (ExpUnaryDec e) = evalExp' e edec
---    v <- evalExp e
---    return $ einc v
 evalExp (ExpPostInc uop e) = return TVoid
-evalExp (ExpFuncP f) = return TVoid--do
---    execFun f []
---    return (TInt 0) --TODO return value
-evalExp (ExpFuncPArgs f args) = return TVoid--do
---    execFun f args
---    return (TInt 0) --TODO same here
+evalExp (ExpFuncP f) = evalExp (ExpFuncPArgs f [])
+evalExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
+    a <- mapM evalExp args
+    execFun id a
 evalExp (ExpConstant c) = return $ constantType c where
     constantType :: Constant -> DataType
-    constantType (ExpId (Ident id)) = TString id
+    constantType (ExpId (Ident id)) = TString id --TODO find in the map
     constantType (ExpInt v) = TInt v
     constantType (ExpBool ConstantTrue) = TBool True
     constantType (ExpBool ConstantFalse) = TBool False
     constantType (ExpString s) = TString s
+evalExp exp = throwError $ "Internal error: expression " ++ (show exp)
 
 
 -- Declarations
@@ -222,6 +219,18 @@ execStmt (StmtDecl d) = execDeclStmt d
 
 -- Functions
 
+--TODO use this function
+findFun :: Ident -> ES CompoundStmt
+findFun id = do
+    (env, _, fargs, _) <- lift get
+    case Map.lookup id env of
+        Nothing -> throwError $ "Unknown function name: " ++ (show id)
+        Just floc -> do
+            case Map.lookup floc fargs of
+                Nothing        -> throwError $ "Internal function error: " ++ (show id)
+                Just (_, stmt) -> return stmt
+
+
 argTypes :: [Arg] -> [ArgType TypeSpec]
 argTypes a =
     (foldl extractT [] a) where
@@ -229,11 +238,38 @@ argTypes a =
         extractT l (ArgRef t id) = (Ref t):l
 
 
+dataTypeToString :: DataType -> String
+dataTypeToString TVoid = "Invalid value"
+dataTypeToString (TBool v) = show v
+dataTypeToString (TInt v) = show v
+dataTypeToString (TString s) = s
+dataTypeToString (TRef t l) = dataTypeToString $ unref (TRef t l)
+
+
+--valueToString :: Exp -> ES String
+--valueToString e = do
+--    v <- evalExp e
+--    return dataTypeToString
+
+
+execBuiltinFun :: Ident -> [DataType] -> ES Status
+execBuiltinFun (Ident s) args =
+    case s of
+        "print"   -> do
+            liftIO $ mapM_ (putStrLn . dataTypeToString) args
+            return Success
+        otherwise -> throwError $ "Unknown built-in function name: " ++ s
+
+
 execFun :: Ident -> [DataType] -> ES DataType
 execFun fname args = do
     (env, store, fargs, _) <- lift get
     case Map.lookup fname env of
-        Nothing   -> throwError $ "Unknown function name: " ++ (show fname)
+        Nothing   -> do
+            fstatus <- execBuiltinFun fname args
+            case fstatus of
+                Error _ -> throwError $ "Unknown function name: " ++ (show fname)
+                Success -> return TVoid --TODO generalise
         Just floc -> do
             case Map.lookup floc fargs of
                 Nothing        -> throwError $ "Internal function error: " ++ (show fname)
@@ -312,8 +348,13 @@ run v s = do
                     case Map.lookup (Ident "main") env of
                         Nothing -> print ("'main' function not found.")
                         Just _  -> do
-                            runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
-                            exitSuccess
+                            res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
+                            case res of
+                                (Left e, _) -> do
+                                    print ("Runtime error: " ++ e)
+                                    exitFailure
+                                (Right r, (env, store, fargs, loc)) -> do
+                                    exitSuccess
 
 
 -- Main
