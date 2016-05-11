@@ -6,7 +6,7 @@ module Main where
 
 import System.IO (stdin, hGetContents)
 import System.Environment (getArgs, getProgName)
-import System.Exit (exitFailure, exitSuccess)
+import System.Exit-- (exitFailure, exitSuccess, exitWith)
 
 import Control.Monad.Except
 import Control.Monad.Trans.State
@@ -89,13 +89,20 @@ evalExp (ExpFuncP f) = evalExp (ExpFuncPArgs f [])
 evalExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     a <- mapM evalExp args
     execFun id a
-evalExp (ExpConstant c) = return $ constantType c where
-    constantType :: Constant -> DataType
-    constantType (ExpId (Ident id)) = TString id --TODO find in the map
-    constantType (ExpInt v) = TInt v
-    constantType (ExpBool ConstantTrue) = TBool True
-    constantType (ExpBool ConstantFalse) = TBool False
-    constantType (ExpString s) = TString s
+evalExp (ExpConstant c) = evalConstantType c where
+    evalConstantType :: Constant -> ES DataType
+    evalConstantType (ExpId (Ident id)) = do
+        (env, store, _, _) <- lift get
+        case Map.lookup (Ident id) env of
+            Nothing -> throwError $ "Unknown variable: " ++ id
+            Just vlocation -> do
+                case Map.lookup vlocation store of
+                    Nothing    -> throwError $ "Internal error: variable " ++ id
+                    Just value -> return value
+    evalConstantType (ExpInt v) = return $ TInt v
+    evalConstantType (ExpBool ConstantTrue) = return $ TBool True
+    evalConstantType (ExpBool ConstantFalse) = return $ TBool False
+    evalConstantType (ExpString s) = return $ TString s
 evalExp exp = throwError $ "Internal error: expression " ++ (show exp)
 
 
@@ -262,23 +269,23 @@ execBuiltinFun (Ident s) args =
 
 
 execFun :: Ident -> [DataType] -> ES DataType
-execFun fname args = do
+execFun (Ident fname) args = do
     (env, store, fargs, _) <- lift get
-    case Map.lookup fname env of
+    case Map.lookup (Ident fname) env of
         Nothing   -> do
-            fstatus <- execBuiltinFun fname args
+            fstatus <- execBuiltinFun (Ident fname) args
             case fstatus of
-                Error _ -> throwError $ "Unknown function name: " ++ (show fname)
+                Error _ -> throwError $ "Unknown function name: " ++ fname
                 Success -> return TVoid --TODO generalise
         Just floc -> do
             case Map.lookup floc fargs of
-                Nothing        -> throwError $ "Internal function error: " ++ (show fname)
+                Nothing        -> throwError $ "Internal function error: " ++ fname
                 Just (_, stmt) -> do
                     execCompoundStmt stmt -- TODO var cover/alloc
                     (env', store', fargs', ret') <- lift get
                     lift $ put (env, store', fargs, TVoid)
                     case ret' of
-                        TVoid     -> throwError $ "Failed to obtain return value from: " ++ (show fname)
+                        TVoid     -> throwError $ "Failed to obtain return value from function: " ++ fname
                         otherwise -> return ret'
 
 
@@ -353,8 +360,17 @@ run v s = do
                                 (Left e, _) -> do
                                     print ("Runtime error: " ++ e)
                                     exitFailure
-                                (Right r, (env, store, fargs, loc)) -> do
-                                    exitSuccess
+                                (Right r, (env, store, fargs, loc)) ->
+                                    case r of
+                                        (TInt 0) -> do
+                                            putStrLn "Program successfully finished."
+                                            exitSuccess
+                                        (TInt k) -> do
+                                            putStrLn $ "Program finished with error code " ++ (show k) ++ "."
+                                            exitWith $ ExitFailure (fromIntegral k)
+                                        otherwise -> do
+                                            putStrLn $ "Program finished with invalid return value."
+                                            exitFailure
 
 
 -- Main

@@ -1,6 +1,6 @@
 Int k = 10;
 
-String intToStr(Int a)
+String magicInt(Int a)
 {
 	return "42";
 }
@@ -10,12 +10,15 @@ Int f(Int a)
 	Int i;
 	String s = "kaka";
 	print(s);
-	for i = 0, i < 5, ++i {
-		print(intToStr(i));
-	}
+	//for i = 0, i < 5, ++i {
+		print(magicInt(i));
+	//}
+	return 4;
 }
 
 Int main()
 {
 	Int a = f(5);
+	print(a, "lmao");
+	return 0;
 }
