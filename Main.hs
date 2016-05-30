@@ -49,6 +49,10 @@ data Status = Success | Error String deriving (Eq, Show)
 
 -- Expressions
 
+emptyExp :: Exp
+emptyExp = ExpConstant $ ExpBool ConstantTrue
+
+
 evalExp' :: Exp -> (DataType -> DataType) -> ES DataType
 evalExp' e f = do
     v <- evalExp e
@@ -60,15 +64,6 @@ evalExp'' e1 e2 f = do
     v1 <- evalExp e1
     v2 <- evalExp e2
     return $ f v1 v2
-
-
---TODO MOVE IT
-applyToVar :: Ident -> (DataType -> DataType) -> ES DataType
-applyToVar id f = do
-    v <- findVar id
-    --TODO double f invocation
-    setVar id (f v)
-    return (f v)
 
 
 evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
@@ -84,18 +79,13 @@ evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
 
 
 evalExp :: Exp -> ES DataType
-evalExp (ExpAssign (ExpConstant (ExpId (Ident id))) op e2) = do
-    v1 <- evalExp $ ExpConstant $ ExpId $ Ident id
+evalExp (ExpAssign (ExpConstant (ExpId id)) op e2) = do
+    v1 <- evalExp $ ExpConstant $ ExpId $ id
     v2 <- evalExp e2
     --TODO references
-    (env, store, fargs, local) <- lift get
-    case Map.lookup (Ident id) env of
-        Nothing -> throwError $ "Unknown variable: " ++ id
-        Just vloc -> do
-            lift $ put (env, Map.insert vloc v store, fargs, local)
-            return v
-            where
-                v = evalAssignOp v1 v2 op
+    let v = evalAssignOp v1 v2 op
+    setVar id v
+    return v
 evalExp (ExpCondition e1 e2 e3) = do
     (TBool c) <- evalExp e1
     if c
@@ -199,6 +189,14 @@ setVar id v = do
     lift $ put (env, Map.insert loc v store, fargs, local)
 
 
+applyToVar :: Ident -> (DataType -> DataType) -> ES DataType
+applyToVar id f = do
+    v <- findVar id
+    let v' = f v
+    setVar id v'
+    return v'
+
+
 -- These functions is supposed to be called with lists of exact same length.
 allocVars :: [Ident] -> [DataType] -> ES Status
 allocVars [] [] = return Success
@@ -248,11 +246,6 @@ execSelectionStmt (StmtIfElse e s1 s2) = do
       then execCompoundStmt s1
       else execCompoundStmt s2
     return Success
-
-
---TODO move it!
-emptyExp :: Exp
-emptyExp = ExpConstant $ ExpBool ConstantTrue
 
 
 execIterationStmt :: IterationStmt -> ES Status
