@@ -107,21 +107,21 @@ evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
 evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
 evalExp (ExpUnaryInc e) = evalExp' e einc
 evalExp (ExpUnaryDec e) = evalExp' e edec
-evalExp (ExpPostInc uop e) = return TVoid
+evalExp (ExpPostInc uop (ExpConstant (ExpId id))) = do
+    v <- findVar id
+    return (evalUnaryOp v uop) where
+        evalUnaryOp :: DataType -> UnaryOp -> DataType
+        evalUnaryOp v OpUnaryPos = upos v
+        evalUnaryOp v OpUnaryNeg = uneg v
+        evalUnaryOp v OpUnaryNot = unot v
+        evalUnaryOp v OpUnaryFlp = uflp v
 evalExp (ExpFuncP f) = evalExp (ExpFuncPArgs f [])
 evalExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     a <- mapM evalExp args
     execFun id a
 evalExp (ExpConstant c) = evalConstantType c where
     evalConstantType :: Constant -> ES DataType
-    evalConstantType (ExpId (Ident id)) = do
-        (env, store, _, _) <- lift get
-        case Map.lookup (Ident id) env of
-            Nothing -> throwError $ "Unknown variable: " ++ id
-            Just vlocation -> do
-                case Map.lookup vlocation store of
-                    Nothing    -> throwError $ "Internal error: variable " ++ id
-                    Just value -> return value
+    evalConstantType (ExpId id) = findVar id
     evalConstantType (ExpInt v) = return $ TInt v
     evalConstantType (ExpBool ConstantTrue) = return $ TBool True
     evalConstantType (ExpBool ConstantFalse) = return $ TBool False
@@ -158,6 +158,28 @@ allocVar (Ident id) v = do
         doAllocVar (Ident id) v
     liftIO $ putStrLn ("Variable " ++ id ++ " allocated")
     return Success
+
+
+findLoc :: Ident -> ES Loc
+findLoc (Ident id) = do
+    (env, _, _, _) <- lift get
+    case Map.lookup (Ident id) env of
+        Nothing -> throwError $ "Unknown variable: " ++ id
+        Just vlocation -> return vlocation
+
+
+findVal :: Loc -> ES DataType
+findVal vloc = do
+    (_, store, _, _) <- lift get
+    case Map.lookup vloc store of
+        Nothing    -> throwError $ "Internal error: location " ++ (show vloc)
+        Just value -> return value
+
+
+findVar :: Ident -> ES DataType
+findVar id = do
+     loc <- findLoc id
+     findVal loc
 
 
 -- These functions is supposed to be called with lists of exact same length.

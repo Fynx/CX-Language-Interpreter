@@ -13,3 +13,4 @@ clean:
 	rm -rf *.{cf,x,y}
 	rm -rf {Abs,Doc,Lex,Par,Print,Skel,Test}CX.*
 	rm -rf ErrM.hs
+	rm -f interpreter

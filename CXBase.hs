@@ -3,6 +3,7 @@ module CXBase where
 
 import qualified Data.Map as Map
 import Data.Bool
+import Data.Bits
 
 import AbsCX
 
@@ -74,6 +75,19 @@ einc (TInt v) = TInt (v + 1)
 
 edec :: DataType -> DataType
 edec (TInt v) = TInt (v - 1)
+
+
+upos :: DataType -> DataType
+upos (TInt v) = TInt v
+
+uneg :: DataType -> DataType
+uneg (TInt v) = TInt $ -v
+
+unot :: DataType -> DataType
+unot (TBool v) = TBool $ not v
+
+uflp :: DataType -> DataType
+uflp (TInt v) = TInt $ complement v
 
 
 defaultValue :: TypeSpec -> DataType
