@@ -62,6 +62,15 @@ evalExp'' e1 e2 f = do
     return $ f v1 v2
 
 
+--TODO MOVE IT
+applyToVar :: Ident -> (DataType -> DataType) -> ES DataType
+applyToVar id f = do
+    v <- findVar id
+    --TODO double f invocation
+    setVar id (f v)
+    return (f v)
+
+
 evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
 evalAssignOp v1 v2 OpAssign = v2
 evalAssignOp v1 v2 OpAssignMul = emul v1 v2
@@ -105,8 +114,8 @@ evalExp (ExpSub e1 e2) = evalExp'' e1 e2 esub
 evalExp (ExpMul e1 e2) = evalExp'' e1 e2 emul
 evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
 evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
-evalExp (ExpUnaryInc e) = evalExp' e einc
-evalExp (ExpUnaryDec e) = evalExp' e edec
+evalExp (ExpUnaryInc (ExpConstant (ExpId id))) = applyToVar id einc
+evalExp (ExpUnaryDec (ExpConstant (ExpId id))) = applyToVar id edec
 evalExp (ExpPostInc uop (ExpConstant (ExpId id))) = do
     v <- findVar id
     return (evalUnaryOp v uop) where
@@ -180,6 +189,14 @@ findVar :: Ident -> ES DataType
 findVar id = do
      loc <- findLoc id
      findVal loc
+
+
+-- The variable must be previously allocated
+setVar :: Ident -> DataType -> ES ()
+setVar id v = do
+    loc <- findLoc id
+    (env, store, fargs, local) <- lift get
+    lift $ put (env, Map.insert loc v store, fargs, local)
 
 
 -- These functions is supposed to be called with lists of exact same length.
@@ -451,6 +468,7 @@ usage = do
         , "  -s (files)      Silent mode. Parse content of files silently (default)."
         ]
     exitFailure
+
 
 main :: IO ()
 main = do

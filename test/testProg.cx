@@ -30,10 +30,9 @@ Int f(Int a)
 	print();
 	print("Entering for-loop with 'i' as the counter, set to 0.");
 	print("Upper-bound value of counter = 5.");
-	print("Incrementation with 'i += 1', unary operators not implemented yet.");
 	print();
 	Int i;
-	for i = 0, i < 5, i += 1 {
+	for i = 0, i < 5, ++i {
 		print("Return value of function 'multByTwo' with arg = ", i, ": ", multByTwo(i));
 	}
 	
