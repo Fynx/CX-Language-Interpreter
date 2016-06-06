@@ -63,7 +63,9 @@ evalExp'' :: Exp -> Exp -> (DataType -> DataType -> DataType) -> ES DataType
 evalExp'' e1 e2 f = do
     v1 <- evalExp e1
     v2 <- evalExp e2
-    return $ f v1 v2
+    ev1 <- unref v1
+    ev2 <- unref v2
+    return $ f ev1 ev2
 
 
 evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
@@ -79,13 +81,17 @@ evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
 
 
 evalExp :: Exp -> ES DataType
-evalExp (ExpAssign (ExpConstant (ExpId id)) op e2) = do
-    v1 <- evalExp $ ExpConstant $ ExpId $ id
-    v2 <- evalExp e2
-    --TODO references
-    let v = evalAssignOp v1 v2 op
-    setVar id v
-    return v
+evalExp (ExpAssign e1 op e2) = do
+    r <- evalExp e1
+    case r of
+      (TRef loc) -> do
+          rv <- unref r
+          v <- evalExp e2
+          kaka <- findVal loc
+          setVal loc (evalAssignOp rv v op)
+          return r
+      otherwise ->
+          throwError $ "Expression " ++ (show e1) ++ " is not an lvalue"
 evalExp (ExpCondition e1 e2 e3) = do
     (TBool c) <- evalExp e1
     if c
@@ -120,13 +126,15 @@ evalExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     execFun id a
 evalExp (ExpConstant c) = evalConstantType c where
     evalConstantType :: Constant -> ES DataType
-    evalConstantType (ExpId id) = findVar id
+    evalConstantType (ExpId id) = do
+        loc <- findLoc id
+        r <- flattenRef $ TRef loc
+        return r
     evalConstantType (ExpInt v) = return $ TInt v
     evalConstantType (ExpBool ConstantTrue) = return $ TBool True
     evalConstantType (ExpBool ConstantFalse) = return $ TBool False
     evalConstantType (ExpString s) = return $ TString s
 evalExp exp = throwError $ "Internal error: expression " ++ (show exp)
-
 
 -- Declarations
 
@@ -181,12 +189,35 @@ findVar id = do
      findVal loc
 
 
+unref :: DataType -> ES DataType
+unref (TRef loc) = do
+    v <- findVal loc
+    return v
+unref t = do
+    return t
+
+
+-- Flattens the chain of references
+flattenRef :: DataType -> ES DataType
+flattenRef (TRef loc) = do
+    v <- findVal loc
+    case v of
+      (TRef _)  -> flattenRef v
+      otherwise -> return $ TRef loc
+flattenRef t = return t
+
+
+setVal :: Loc -> DataType -> ES ()
+setVal loc v = do
+    (env, store, fargs, local) <- lift get
+    lift $ put (env, Map.insert loc v store, fargs, local)
+
+
 -- The variable must be previously allocated
 setVar :: Ident -> DataType -> ES ()
 setVar id v = do
     loc <- findLoc id
-    (env, store, fargs, local) <- lift get
-    lift $ put (env, Map.insert loc v store, fargs, local)
+    setVal loc v
 
 
 applyToVar :: Ident -> (DataType -> DataType) -> ES DataType
@@ -308,61 +339,88 @@ findFun :: Ident -> ES CompoundStmt
 findFun id = do
     (env, _, fargs, _) <- lift get
     case Map.lookup id env of
-        Nothing -> throwError $ "Unknown function name: " ++ (show id)
-        Just floc -> do
-            case Map.lookup floc fargs of
-                Nothing ->
-                    throwError $ "Internal function error: " ++ (show id)
-                Just (_, stmt) -> return stmt
+      Nothing -> throwError $ "Unknown function name: " ++ (show id)
+      Just floc -> do
+        case Map.lookup floc fargs of
+          Nothing ->
+            throwError $ "Internal function error: " ++ (show id)
+          Just (_, _, stmt) -> return stmt
 
 
-dataTypeToString :: DataType -> String
-dataTypeToString TVoid = "Invalid value"
-dataTypeToString (TBool v) = show v
-dataTypeToString (TInt v) = show v
-dataTypeToString (TString s) = s
-dataTypeToString (TRef t l) = dataTypeToString $ unref (TRef t l)
+dataTypeToString :: DataType -> ES String
+dataTypeToString TVoid = return "Invalid value"
+dataTypeToString (TBool v) = return $ show v
+dataTypeToString (TInt v) = return $ show v
+dataTypeToString (TString s) = return s
+dataTypeToString (TRef l) = do
+    v <- findVal l
+    dataTypeToString v
+
+
+setArgRefs :: [Arg] -> [DataType] -> ES [DataType]
+setArgRefs [] [] = return []
+setArgRefs (a:args) (v:vs) =
+    case a of
+      (ArgVal _ _) -> do
+        rv <- unref v
+        t <- setArgRefs args vs
+        return (rv:t)
+      (ArgRef _ _) -> do
+        rv <- flattenRef v
+        t <- setArgRefs args vs
+        return (rv:t)
 
 
 allocArgs :: [Arg] -> [DataType] -> ES Status
-allocArgs args vs =
-    forceAllocVars (map extractId args) vs where
-        extractId (ArgVal t id) = id
--- TODO ref
+allocArgs args vs = do
+    refArgs <- setArgRefs args vs
+    forceAllocVars (map extractId args) refArgs where
+        extractId (ArgVal _ id) = id
+        extractId (ArgRef _ id) = id
+
+
+-- It's ugly, but looks like it's difficult to escape those monads
+putStrValue :: DataType -> ES ()
+putStrValue v = do
+    s <- dataTypeToString v
+    liftIO $ putStr s
 
 
 execBuiltinFun :: Ident -> [DataType] -> ES Status
 execBuiltinFun (Ident s) args =
     case s of
-        "print"   -> do
-            liftIO $ mapM_ (putStr . dataTypeToString) args
-            liftIO $ putStrLn ""
-            return Success
-        otherwise -> throwError $ "Unknown built-in function name: " ++ s
+      "print"   -> do
+        mapM_ putStrValue args
+        liftIO $ putStrLn ""
+        return Success
+      otherwise -> throwError $ "Unknown built-in function name: " ++ s
 
 
 execFun :: Ident -> [DataType] -> ES DataType
 execFun (Ident fname) args = do
     (env, store, fargs, _) <- lift get
     case Map.lookup (Ident fname) env of
-        Nothing   -> do
-            fstatus <- execBuiltinFun (Ident fname) args
-            case fstatus of
-                Error _ -> throwError $ "Unknown function name: " ++ fname
-                Success -> return TVoid --TODO generalise
-        Just floc -> do
-            case Map.lookup floc fargs of
-                Nothing -> throwError $ "Internal function error: " ++ fname
-                Just (argl, stmt) -> do
-                    if length argl /= length args
-                        then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
-                        else allocArgs argl args
-                    execCompoundStmt stmt -- TODO var cover/alloc
-                    (env', store', fargs', ret') <- lift get
-                    lift $ put (env, store', fargs, TVoid)
-                    case ret' of
-                        TVoid     -> throwError $ "Failed to obtain return value from function: " ++ fname
-                        otherwise -> return ret'
+      Nothing   -> do
+        fstatus <- execBuiltinFun (Ident fname) args
+        case fstatus of
+          Error _ -> throwError $ "Unknown function name: " ++ fname
+          Success -> return TVoid
+      Just floc -> do
+        case Map.lookup floc fargs of
+          Nothing -> throwError $ "Internal function error: " ++ fname
+          Just (rType, argl, stmt) -> do
+            if length argl /= length args
+              then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
+              else allocArgs argl args
+            execCompoundStmt stmt -- TODO var cover/alloc
+            (env', store', fargs', ret') <- lift get
+            lift $ put (env, store', fargs, TVoid)
+            case rType of
+              (TypeVoid) -> return TVoid
+              otherwise  ->
+                case ret' of
+                  TVoid     -> throwError $ "Failed to obtain return value from function: " ++ fname
+                  otherwise -> return ret'
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
@@ -374,8 +432,8 @@ allocFun (Ident id) t args stmt = do
         throwError $ "Name " ++ id ++ " already exists."
       else
         lift $ put (Map.insert (Ident id) loc env,
-                    Map.insert loc (TFun t) store,
-                    Map.insert loc (args, stmt) fargs,
+                    Map.insert loc (TFun (Ident id)) store,
+                    Map.insert loc (t, args, stmt) fargs,
                     local)
     liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
     return Success

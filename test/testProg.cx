@@ -12,6 +12,12 @@ Int multByTwo(Int a)
 	return a * 2;
 }
 
+Void addFive(Int &a)
+{
+	print("Entered function addFive with arg = ", a);
+	a += 5;
+}
+
 /** Passing references doesn't work yet. */
 Int f(Int a)
 {
@@ -26,7 +32,7 @@ Int f(Int a)
 	print("Initialised 'String s' = '", s, "'");
 	s = "other string";
 	print("Changed value of s to '", s, "'");
-	
+
 	print();
 	print("Entering for-loop with 'i' as the counter, set to 0.");
 	print("Upper-bound value of counter = 5.");
@@ -35,9 +41,23 @@ Int f(Int a)
 	for i = 0, i < 5, ++i {
 		print("Return value of function 'multByTwo' with arg = ", i, ": ", multByTwo(i));
 	}
+
+	print();
+	print("Entering function with arg i = ", i);
+	addFive(i);
+	print("Current value of i = ", i);
+	print();
 	
 	print("Loop and conditional statements scopes not working yet, either.");
 	print("Exit function f with return value = 4 (because why not).");
+
+
+	Int r = 5;
+
+	r = x = 2;
+	print("Chain assignment 'r = x = 2'");
+	print("r = ", r, ", x = ", x);
+
 	return 4;
 }
 

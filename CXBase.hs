@@ -15,14 +15,9 @@ data DataType =
     | TBool   Bool
     | TInt    Integer
     | TString String
-    | TRef    DataType Loc
-    | TFun    TypeSpec
+    | TRef    Loc
+    | TFun    Ident
     deriving (Show)
-
-
-unref :: DataType -> DataType
-unref (TRef t l) = unref t
-unref v = v
 
 
 elogxor :: DataType -> DataType -> DataType
@@ -63,6 +58,7 @@ esub (TInt v1) (TInt v2) = TInt (v1 - v2)
 
 emul :: DataType -> DataType -> DataType
 emul (TInt v1) (TInt v2) = TInt (v1 * v2)
+emul a1 a2 = error $ "Invalid arguments " ++ (show a1) ++ ", " ++ (show a2)
 
 ediv :: DataType -> DataType -> DataType
 ediv (TInt v1) (TInt v2) = TInt (div v1 v2)
@@ -98,7 +94,7 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
-type FunArgs = Map.Map Loc ([Arg], CompoundStmt)
+type FunArgs = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
 type Local = DataType
 type Cont = (Env, Store, FunArgs, Local)
 
