@@ -48,6 +48,12 @@ data Status = Success | Error String deriving (Eq, Show)
 type ParseFun a = [Token] -> Err a
 
 
+type Cont = (Env, Store, FunArgs, Local)
+
+emptyCont :: Cont
+emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
+
+
 -- Expressions
 
 emptyExp :: Exp
@@ -80,6 +86,8 @@ evalAssignOp v1 v2 OpAssignAnd = elogand v1 v2
 evalAssignOp v1 v2 OpAssignXor = elogxor v1 v2
 evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
 
+
+--TODO catch Error
 
 evalExp :: Exp -> ES DataType
 evalExp (ExpAssign e1 op e2) = do
@@ -478,7 +486,7 @@ run v s = do
       Ok p -> do
         putStrLn "\nParse Successful!"
         showTree v p
-        putStrLn "Collecting global names."
+        putStrLn "Collecting global names.\n"
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
@@ -486,9 +494,13 @@ run v s = do
             exitFailure
           (Right r, (env, store, fargs, loc)) -> do
             putStrLn "Running type checking..."
-            runStateT (runExceptT $ checkTypes (env, fargs)) emptyTypeCont
-            putStrLn ""
-            putStrLn "Execute main program..."
+            res <- runStateT (runExceptT checkTypes) (env, Map.empty, fargs, TypeVoid)
+            case res of
+              (Left e, _) -> do
+                putStrLn $ "Type checking error:\n" ++ e
+                exitFailure
+              (Right r, _) -> return ()
+            putStrLn "\nExecute main program..."
             case Map.lookup (Ident "main") env of
               Nothing -> print ("'main' function not found.")
               Just _  -> do

@@ -3,7 +3,7 @@ all:
 	bnfc -haskell CX.cf
 	happy -gca ParCX.y
 	alex -g LexCX.x
-	cabal build -v
+	cabal build
 	cp dist/build/CX/CX interpreter
 
 test: all

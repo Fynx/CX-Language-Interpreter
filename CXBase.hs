@@ -96,9 +96,5 @@ type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
 --TODO change to FunSpec
 type FunArgs = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
+--TODO change to RetVal
 type Local = DataType
-type Cont = (Env, Store, FunArgs, Local)
-
-
-emptyCont :: Cont
-emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
