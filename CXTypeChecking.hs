@@ -33,13 +33,51 @@ type TES a = ExceptT String (StateT TypeCont (IO)) a
 
 -- Declarations
 
+ctTranslationUnit :: TranslationUnit -> TES ()
+ctTranslationUnit (Program ds) = do
+    mapM_ ctExternalDecl ds
+    return ()
+
+
+ctExternalDecl :: ExternalDecl -> TES ()
+ctExternalDecl (GlobalFunction f) = ctFunctionDef f
+ctExternalDecl (GlobalDecl d) = ctDecl d
+
+
+ctFunctionDef :: FunctionDef -> TES ()
+ctFunctionDef (FunctionArgsP ts id args cstmt) =
+    allocFunT id ts args cstmt
+ctFunctionDef (FunctionArgs ts id args stmt) =
+    allocFunT id ts args (StmtCompoundList [stmt])
+ctFunctionDef (FunctionProcP t id cstmt) = ctFunctionDef (FunctionArgsP t id [] cstmt)
+ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stmt)
+
+
+allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
+allocFunT (Ident id) t args stmt = do
+    (env, tstore, fargs, rtype) <- lift get
+    loc <- lift.lift $ newTLoc tstore
+    if Map.member (Ident id) env
+      then
+        throwError $ "Cannot create function '" ++ id ++ "', name already exists."
+      else
+        lift $ put (Map.insert (Ident id) loc env,
+                    Map.insert loc t tstore,
+                    Map.insert loc (t, args, stmt) fargs,
+                    rtype)
+    liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
+    return ()
+
+
 ctDecl :: Decl -> TES ()
-ctDecl (DeclDefault ts ids) = return ()
+ctDecl (DeclDefault ts ids) = do
+    mapM_ ((flip allocVarT) ts) ids
+    return ()
 ctDecl (DeclDefine ts id e) = do
     et <- ctExp e
     if ts == et
-      then return ()
-      else throwError $ "Attempting to assign invalid value to variable " ++ showId id
+      then allocVarT id ts
+      else throwError $ "Attempting to assign invalid value to variable '" ++ showId id ++ "'"
 
 
 newTLoc :: TStore -> IO Loc
@@ -61,6 +99,7 @@ doAllocVarT (Ident id) t = do
 allocVarT :: Ident -> TypeSpec -> TES ()
 allocVarT (Ident id) v = do
     (env, tstore, fargs, _) <- lift get
+    liftIO $ putStrLn $ "Alloc var " ++ id
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
@@ -73,7 +112,7 @@ findLocT :: Ident -> TES Loc
 findLocT (Ident id) = do
     (env, _, _, _) <- lift get
     case Map.lookup (Ident id) env of
-        Nothing   -> throwError $ "Unknown variable: " ++ id
+        Nothing   -> throwError $ "Unknown variable: '" ++ id ++ "'"
         Just vloc -> return vloc
 
 
@@ -175,7 +214,12 @@ ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
                     | x == y    = compareArrays xs ys
                     | otherwise = False
 ctExp (ExpFuncPArgs e _) = throwError $ "Expressions with functions hidden inside not implemented: " ++ show e
-ctExp (ExpConstant c) = return TypeVoid
+ctExp (ExpConstant c) = ctExpConstant c where
+    ctExpConstant :: Constant -> TES TypeSpec
+    ctExpConstant (ExpId id) = findVarT id
+    ctExpConstant (ExpInt _) = return TypeInt
+    ctExpConstant (ExpBool _) = return TypeBool
+    ctExpConstant (ExpString _) = return TypeString
 
 
 canAExp :: Operation -> Exp -> TES TypeSpec
@@ -196,7 +240,7 @@ canAF UInc TypeInt = return TypeInt
 canAF UDec TypeInt = return TypeInt
 canAF PInc TypeInt = return TypeInt
 canAF PDec TypeInt = return TypeInt
-canAF op t = throwError $ "Cannot use operation " ++ show op ++ " on type " ++ showTS t
+canAF op t = throwError $ "Cannot use operation '" ++ show op ++ "' on type '" ++ showTS t ++ "'"
 
 
 canAF2 :: Operation -> TypeSpec -> TypeSpec -> TES TypeSpec
@@ -311,11 +355,12 @@ ctFunction (id, loc) = do
     (env, tstore, fargs, _) <- lift get
     case Map.lookup loc fargs of
       Nothing -> do
-        liftIO $ putStrLn $ "Not a function: " ++ showId id
+        liftIO $ putStrLn $ "Not a function: '" ++ showId id ++ "'"
         return () -- Not a function
       Just (ts, args, stmt) -> do
-        liftIO $ putStrLn $ "Check function " ++ showId id ++ " with type " ++ showTS ts ++
+        liftIO $ putStrLn $ "Check function '" ++ showId id ++ "' with type " ++ showTS ts ++
                             " and args " ++ show args ++ "\n"
+        _ <- forceAllocVarsT (argsIds args) (argsTS args)
         _ <- ctCompoundStmt stmt
         (_, _, _, rtype) <- lift get
         lift $ put $ (env, tstore, fargs, TypeVoid)
@@ -324,6 +369,14 @@ ctFunction (id, loc) = do
           else throwError $ "Invalid return value of function " ++ showId id ++
                             "\n  Expected type: " ++ showTS ts ++ "\n  Actual type:   " ++
                             showTS rtype
+        where
+            argsIds [] = []
+            argsIds ((ArgVal ts id):args) = id : argsIds args
+            argsIds ((ArgRef ts id):args) = id : argsIds args
+            argsTS [] = []
+            argsTS ((ArgVal ts id):args) = ts : argsTS args
+            argsTS ((ArgRef ts id):args) = ts : argsTS args
+
 
 
 showTS :: TypeSpec -> String
@@ -337,11 +390,9 @@ showId :: Ident -> String
 showId (Ident s) = s
 
 
-checkTypes :: TES ()
-checkTypes = do
-    (env, tstore, fargs, rtype) <- lift get
-    liftIO $ putStrLn "\nEnv:"
-    liftIO $ print env
-    liftIO $ putStrLn ""
+checkTypes :: TranslationUnit -> TES ()
+checkTypes tu = do
+    (env, _, _, _) <- lift get
+    ctTranslationUnit tu
     mapM_ ctFunction (Map.assocs env)
     return ()

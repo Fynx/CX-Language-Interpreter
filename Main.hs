@@ -243,6 +243,7 @@ allocVars (id:ids) (v:vs) = do
     allocVar id v
     allocVars ids vs
 
+
 forceAllocVars :: [Ident] -> [DataType] -> ES Status
 forceAllocVars [] [] = return Success
 forceAllocVars (id:ids) (v:vs) = do
@@ -485,20 +486,22 @@ run v s = do
       Ok p -> do
         putStrLn "\nParse Successful!"
         showTree v p
-        putStrLn "Collecting global names.\n"
+
+        putStrLn "\nRunning type checking...\n"
+        res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
+        case res of
+          (Left e, _) -> do
+            putStrLn $ "Type checking error:\n" ++ e
+            exitFailure
+          (Right r, _) -> return ()
+
+        putStrLn "\nCollecting global names.\n"
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
             print ("Runtime error: " ++ e)
             exitFailure
           (Right r, (env, store, fargs, loc)) -> do
-            putStrLn "Running type checking..."
-            res <- runStateT (runExceptT checkTypes) (env, Map.empty, fargs, TypeVoid)
-            case res of
-              (Left e, _) -> do
-                putStrLn $ "Type checking error:\n" ++ e
-                exitFailure
-              (Right r, _) -> return ()
             putStrLn "\nExecute main program..."
             case Map.lookup (Ident "main") env of
               Nothing -> print ("'main' function not found.")

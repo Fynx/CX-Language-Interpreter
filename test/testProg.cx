@@ -23,7 +23,7 @@ Int f(Int a)
 {
 	print("Entering function f");
 	/** Variable scope visibility, passing args to function. */
-	print("arg a = ", a, " (passed by value, references don't work yet.)");
+	print("arg a = ", a);
 	
 	Int x = 1 + 1;
 	print("Initialised with exp 'Int x = 1 + 1', x = ", x);
