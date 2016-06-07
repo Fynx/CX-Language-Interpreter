@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import Data.Maybe
 
 import CXBase
+import CXTypeChecking
 
 import LexCX
 import ParCX
@@ -41,10 +42,10 @@ showTree v tree = do
 
 -- Interpreter
 
-type ParseFun a = [Token] -> Err a
-
 type ES a = ExceptT String (StateT Cont (IO)) a
 data Status = Success | Error String deriving (Eq, Show)
+
+type ParseFun a = [Token] -> Err a
 
 
 -- Expressions
@@ -470,41 +471,43 @@ runFile v f = putStrLn f >> readFile f >>= run v
 run :: Verbosity -> String -> IO ()
 run v s = do
     let ts = myLexer s in case pTranslationUnit ts of
-        Bad e -> do
-            putStrLn "\nParse Failed...\n"
-            putStrLn e
+      Bad e -> do
+        putStrLn "\nParse Failed...\n"
+        putStrLn e
+        exitFailure
+      Ok p -> do
+        putStrLn "\nParse Successful!"
+        showTree v p
+        putStrLn "Collecting global names."
+        res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
+        case res of
+          (Left e, _) -> do
+            print ("Runtime error: " ++ e)
             exitFailure
-        Ok p -> do
-            putStrLn "\nParse Successful!"
-            showTree v p
-            putStrLn "Collecting global names, type checking not implemented yet."
-            res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
-            case res of
-                (Left e, _) -> do
+          (Right r, (env, store, fargs, loc)) -> do
+            putStrLn "Running type checking..."
+            runStateT (runExceptT $ checkTypes (env, fargs)) emptyTypeCont
+            putStrLn ""
+            putStrLn "Execute main program..."
+            case Map.lookup (Ident "main") env of
+              Nothing -> print ("'main' function not found.")
+              Just _  -> do
+                res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
+                case res of
+                  (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
-                (Right r, (env, store, fargs, loc)) -> do
-                    putStrLn ""
-                    putStrLn "Execute main program..."
-                    case Map.lookup (Ident "main") env of
-                        Nothing -> print ("'main' function not found.")
-                        Just _  -> do
-                            res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
-                            case res of
-                                (Left e, _) -> do
-                                    print ("Runtime error: " ++ e)
-                                    exitFailure
-                                (Right r, (env, store, fargs, loc)) ->
-                                    case r of
-                                        (TInt 0) -> do
-                                            putStrLn "Program successfully finished."
-                                            exitSuccess
-                                        (TInt k) -> do
-                                            putStrLn $ "Program finished with error code " ++ (show k) ++ "."
-                                            exitWith $ ExitFailure (fromIntegral k)
-                                        otherwise -> do
-                                            putStrLn $ "Program finished with invalid return value."
-                                            exitFailure
+                  (Right r, (env, store, fargs, loc)) ->
+                    case r of
+                      (TInt 0) -> do
+                        putStrLn "Program successfully finished."
+                        exitSuccess
+                      (TInt k) -> do
+                        putStrLn $ "Program finished with error code " ++ (show k) ++ "."
+                        exitWith $ ExitFailure (fromIntegral k)
+                      otherwise -> do
+                        putStrLn $ "Program finished with invalid return value."
+                        exitFailure
 
 
 -- Main

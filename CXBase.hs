@@ -94,6 +94,7 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
+--TODO change to FunSpec
 type FunArgs = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
 type Local = DataType
 type Cont = (Env, Store, FunArgs, Local)
