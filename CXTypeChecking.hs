@@ -42,36 +42,119 @@ ctDecl (DeclDefine ts id e) = do
       else throwError $ "Attempting to assign invalid value to variable " ++ showId id
 
 
+newTLoc :: TStore -> IO Loc
+newTLoc s =
+    return $ (maximum $ k s) + 1 where
+        k s | null (keys s) = [0]
+            | otherwise     = keys s where
+            keys s = Map.keys s
+
+
+doAllocVarT :: Ident -> TypeSpec -> TES ()
+doAllocVarT (Ident id) t = do
+    (env, tstore, fargs, rtype) <- lift get
+    loc <- lift.lift $ newTLoc tstore
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc t tstore, fargs, rtype)
+    return ()
+
+
+allocVarT :: Ident -> TypeSpec -> TES ()
+allocVarT (Ident id) v = do
+    (env, tstore, fargs, _) <- lift get
+    if Map.member (Ident id) env
+      then
+        throwError $ "Name " ++ id ++ " already exists."
+      else
+        doAllocVarT (Ident id) v
+    return ()
+
+
+findLocT :: Ident -> TES Loc
+findLocT (Ident id) = do
+    (env, _, _, _) <- lift get
+    case Map.lookup (Ident id) env of
+        Nothing   -> throwError $ "Unknown variable: " ++ id
+        Just vloc -> return vloc
+
+
+findValT :: Loc -> TES TypeSpec
+findValT loc = do
+    (_, tstore, _, _) <- lift get
+    case Map.lookup loc tstore of
+        Nothing -> throwError $ "Internal error: location " ++ (show loc)
+        Just v  -> return v
+
+
+findVarT :: Ident -> TES TypeSpec
+findVarT id = do
+     loc <- findLocT id
+     findValT loc
+
+
+allocVarsT :: [Ident] -> [TypeSpec] -> TES ()
+allocVarsT [] [] = return ()
+allocVarsT (id:ids) (v:vs) = do
+    allocVarT id v
+    allocVarsT ids vs
+
+
+forceAllocVarsT :: [Ident] -> [TypeSpec] -> TES ()
+forceAllocVarsT [] [] = return ()
+forceAllocVarsT (id:ids) (v:vs) = do
+    doAllocVarT id v
+    forceAllocVarsT ids vs
+
+
 -- Expressions
 
+
+data Operation =
+    As | AsMul | AsDiv | AsMod | AsAdd | AsSub | AsAnd | AsOr |
+    LogAnd | LogOr | Ieq | Neq | Lt | Gt | Le | Ge | Add | Sub | Mul | Div | Mod |
+    UInc | UDec | PInc | PDec
+        deriving Show
+
+
 ctExp :: Exp -> TES TypeSpec
-ctExp (ExpAssign e1 op e2) = ctExpAssign op e1 e2
+ctExp (ExpAssign e1 op e2) = ctExpAssign op e1 e2 where
+    ctExpAssign :: AssignmentOp -> Exp -> Exp -> TES TypeSpec
+    ctExpAssign OpAssign e1 e2 = canAExp2 As e1 e2
+    ctExpAssign OpAssignMul e1 e2 = canAExp2 AsMul e1 e2
+    ctExpAssign OpAssignDiv e1 e2 = canAExp2 AsDiv e1 e2
+    ctExpAssign OpAssignMod e1 e2 = canAExp2 AsMod e1 e2
+    ctExpAssign OpAssignAdd e1 e2 = canAExp2 AsAdd e1 e2
+    ctExpAssign OpAssignSub e1 e2 = canAExp2 AsSub e1 e2
+    ctExpAssign OpAssignAnd e1 e2 = canAExp2 AsAnd e1 e2
+    ctExpAssign OpAssignOr e1 e2 = canAExp2 AsOr e1 e2
 ctExp (ExpCondition cond e1 e2) = do
     ct <- ctExp cond
     if ct == TypeBool
       then return TypeBool
       else throwError $ "Non-boolean value in condition: " ++ show cond
-ctExp (ExpLogOr e1 e2) = ctExpLogOr e1 e2
-ctExp (ExpEq e1 e2) = ctExpEq e1 e2
-ctExp (ExpNeq e1 e2) = ctExpNeq e1 e2
-ctExp (ExpLt e1 e2) = ctExpLt e1 e2
-ctExp (ExpGt e1 e2) = ctExpGt e1 e2
-ctExp (ExpLe e1 e2) = ctExpLe e1 e2
-ctExp (ExpGe e1 e2) = ctExpGe e1 e2
-ctExp (ExpAdd e1 e2) = ctExpAdd e1 e2
-ctExp (ExpSub e1 e2) = ctExpSub e1 e2
-ctExp (ExpMul e1 e2) = ctExpMul e1 e2
-ctExp (ExpDiv e1 e2) = ctExpDiv e1 e2
-ctExp (ExpMod e1 e2) = ctExpMod e1 e2
-ctExp (ExpUnaryInc e) = ctExpUnaryInc e
-ctExp (ExpUnaryDec e) = ctExpUnaryDec e
-ctExp (ExpPostInc uop e) = ctExpPostInc e
-ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
+ctExp (ExpLogOr e1 e2) = canAExp2 LogOr e1 e2
+ctExp (ExpLogAnd e1 e2) = canAExp2 LogAnd e1 e2
+ctExp (ExpEq e1 e2) = canAExp2 Ieq e1 e2
+ctExp (ExpNeq e1 e2) = canAExp2 Neq e1 e2
+ctExp (ExpLt e1 e2) = canAExp2 Lt e1 e2
+ctExp (ExpGt e1 e2) = canAExp2 Gt e1 e2
+ctExp (ExpLe e1 e2) = canAExp2 Le e1 e2
+ctExp (ExpGe e1 e2) = canAExp2 Ge e1 e2
+ctExp (ExpAdd e1 e2) = canAExp2 Add e1 e2
+ctExp (ExpSub e1 e2) = canAExp2 Sub e1 e2
+ctExp (ExpMul e1 e2) = canAExp2 Mul e1 e2
+ctExp (ExpDiv e1 e2) = canAExp2 Div e1 e2
+ctExp (ExpMod e1 e2) = canAExp2 Mod e1 e2
+ctExp (ExpUnaryInc e) = canAExp UInc e
+ctExp (ExpUnaryDec e) = canAExp UDec e
+ctExp (ExpPostInc uop e) = canAExp PInc e
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     (env, _, fargs, _) <- lift get
     case Map.lookup id env of
-      Nothing -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
+      Nothing -> do
+        case id of -- built-in functions
+          Ident "print" -> return TypeVoid
+          otherwise -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
       Just loc -> do
         case Map.lookup loc fargs of
           Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
@@ -95,23 +178,54 @@ ctExp (ExpFuncPArgs e _) = throwError $ "Expressions with functions hidden insid
 ctExp (ExpConstant c) = return TypeVoid
 
 
-ctExpAssign op e1 e2 = return TypeVoid
+canAExp :: Operation -> Exp -> TES TypeSpec
+canAExp op e = do
+    ts <- ctExp e
+    canAF op ts --TODO catch error
 
-ctExpLogOr e1 e2 = return TypeVoid
-ctExpEq e1 e2 = return TypeVoid
-ctExpNeq e1 e2 = return TypeVoid
-ctExpLt e1 e2 = return TypeVoid
-ctExpGt e1 e2 = return TypeVoid
-ctExpLe e1 e2 = return TypeVoid
-ctExpGe e1 e2 = return TypeVoid
-ctExpAdd e1 e2 = return TypeVoid
-ctExpSub e1 e2 = return TypeVoid
-ctExpMul e1 e2 = return TypeVoid
-ctExpDiv e1 e2 = return TypeVoid
-ctExpMod e1 e2 = return TypeVoid
-ctExpUnaryInc e = return TypeVoid
-ctExpUnaryDec e = return TypeVoid
-ctExpPostInc e = return TypeVoid
+
+canAExp2 :: Operation -> Exp -> Exp -> TES TypeSpec
+canAExp2 op e1 e2 = do
+    ts1 <- ctExp e1
+    ts2 <- ctExp e2
+    canAF2 op ts1 ts2 --TODO catch error
+
+
+canAF :: Operation -> TypeSpec -> TES TypeSpec
+canAF UInc TypeInt = return TypeInt
+canAF UDec TypeInt = return TypeInt
+canAF PInc TypeInt = return TypeInt
+canAF PDec TypeInt = return TypeInt
+canAF op t = throwError $ "Cannot use operation " ++ show op ++ " on type " ++ showTS t
+
+
+canAF2 :: Operation -> TypeSpec -> TypeSpec -> TES TypeSpec
+canAF2 As t1 t2 | t1 == t2 = return t1
+canAF2 AsMul t1 t2 = canAF2 Mul t1 t2
+canAF2 AsDiv t1 t2 = canAF2 Div t1 t2
+canAF2 AsMod t1 t2 = canAF2 Mod t1 t2
+canAF2 AsAdd t1 t2 = canAF2 Add t1 t2
+canAF2 AsSub t1 t2 = canAF2 Sub t1 t2
+canAF2 AsAnd t1 t2 = canAF2 LogAnd t1 t2
+canAF2 AsOr t1 t2 = canAF2 LogOr t1 t2
+canAF2 LogOr TypeBool TypeBool = return TypeBool
+canAF2 LogAnd TypeBool TypeBool = return TypeBool
+canAF2 Ieq TypeBool TypeBool = return TypeBool
+canAF2 Ieq TypeInt TypeInt = return TypeBool
+canAF2 Ieq TypeString TypeString = return TypeBool
+canAF2 Neq t1 t2 = canAF2 Ieq t1 t2
+canAF2 Lt TypeInt TypeInt = return TypeBool
+canAF2 Gt TypeInt TypeInt = return TypeBool
+canAF2 Le TypeInt TypeInt = return TypeBool
+canAF2 Ge TypeInt TypeInt = return TypeBool
+canAF2 Add TypeInt TypeInt = return TypeInt
+canAF2 Add TypeString TypeString = return TypeString
+canAF2 Sub TypeInt TypeInt = return TypeInt
+canAF2 Mul TypeInt TypeInt = return TypeInt
+canAF2 Div TypeInt TypeInt = return TypeInt
+canAF2 Mod TypeInt TypeInt = return TypeInt
+canAF2 op t1 t2 = throwError $ "Cannot use operation " ++ show op ++ " on types " ++
+                               showTS t1 ++ ", " ++ showTS t2
 
 
 makeEmptyExp :: Exp

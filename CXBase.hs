@@ -58,7 +58,6 @@ esub (TInt v1) (TInt v2) = TInt (v1 - v2)
 
 emul :: DataType -> DataType -> DataType
 emul (TInt v1) (TInt v2) = TInt (v1 * v2)
-emul a1 a2 = error $ "Invalid arguments " ++ (show a1) ++ ", " ++ (show a2)
 
 ediv :: DataType -> DataType -> DataType
 ediv (TInt v1) (TInt v2) = TInt (div v1 v2)

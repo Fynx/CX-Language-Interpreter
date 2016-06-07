@@ -166,7 +166,6 @@ doAllocVar (Ident id) v = do
 allocVar :: Ident -> DataType -> ES Status
 allocVar (Ident id) v = do
     (env, store, fargs, local) <- lift get
-    loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
