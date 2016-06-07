@@ -45,26 +45,73 @@ ctDecl (DeclDefine ts id e) = do
 -- Expressions
 
 ctExp :: Exp -> TES TypeSpec
-ctExp (ExpAssign e1 op e2) = return TypeVoid
-ctExp (ExpCondition cond e1 e2) = return TypeVoid
-ctExp (ExpLogOr e1 e2) = return TypeVoid
-ctExp (ExpEq e1 e2) = return TypeVoid
-ctExp (ExpNeq e1 e2) = return TypeVoid
-ctExp (ExpLt e1 e2) = return TypeVoid
-ctExp (ExpGt e1 e2) = return TypeVoid
-ctExp (ExpLe e1 e2) = return TypeVoid
-ctExp (ExpGe e1 e2) = return TypeVoid
-ctExp (ExpAdd e1 e2) = return TypeVoid
-ctExp (ExpSub e1 e2) = return TypeVoid
-ctExp (ExpMul e1 e2) = return TypeVoid
-ctExp (ExpDiv e1 e2) = return TypeVoid
-ctExp (ExpMod e1 e2) = return TypeVoid
-ctExp (ExpUnaryInc e) = return TypeVoid
-ctExp (ExpUnaryDec e) = return TypeVoid
-ctExp (ExpPostInc uop e) = return TypeVoid
-ctExp (ExpFuncP e) = return TypeVoid
-ctExp (ExpFuncPArgs e args) = return TypeVoid
+ctExp (ExpAssign e1 op e2) = ctExpAssign op e1 e2
+ctExp (ExpCondition cond e1 e2) = do
+    ct <- ctExp cond
+    if ct == TypeBool
+      then return TypeBool
+      else throwError $ "Non-boolean value in condition: " ++ show cond
+ctExp (ExpLogOr e1 e2) = ctExpLogOr e1 e2
+ctExp (ExpEq e1 e2) = ctExpEq e1 e2
+ctExp (ExpNeq e1 e2) = ctExpNeq e1 e2
+ctExp (ExpLt e1 e2) = ctExpLt e1 e2
+ctExp (ExpGt e1 e2) = ctExpGt e1 e2
+ctExp (ExpLe e1 e2) = ctExpLe e1 e2
+ctExp (ExpGe e1 e2) = ctExpGe e1 e2
+ctExp (ExpAdd e1 e2) = ctExpAdd e1 e2
+ctExp (ExpSub e1 e2) = ctExpSub e1 e2
+ctExp (ExpMul e1 e2) = ctExpMul e1 e2
+ctExp (ExpDiv e1 e2) = ctExpDiv e1 e2
+ctExp (ExpMod e1 e2) = ctExpMod e1 e2
+ctExp (ExpUnaryInc e) = ctExpUnaryInc e
+ctExp (ExpUnaryDec e) = ctExpUnaryDec e
+ctExp (ExpPostInc uop e) = ctExpPostInc e
+ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
+ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
+ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
+    (env, _, fargs, _) <- lift get
+    case Map.lookup id env of
+      Nothing -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
+      Just loc -> do
+        case Map.lookup loc fargs of
+          Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
+          Just (ts, rargs, _) -> do
+            argts <- mapM ctExp args
+            let rargts = map extractType rargs
+            if compareArrays argts rargts
+              then return ts
+              else throwError $ "Arguments of function '" ++ showId id ++ "' do not match.\n" ++
+                                "  Expected types: " ++ show rargts ++ "\n  Actual types: " ++ show argts
+            where
+                extractType (ArgVal t _) = t
+                extractType (ArgRef t _) = t
+                compareArrays [] [] = True
+                compareArrays l [] = False
+                compareArrays [] l = False
+                compareArrays (x:xs) (y:ys)
+                    | x == y    = compareArrays xs ys
+                    | otherwise = False
+ctExp (ExpFuncPArgs e _) = throwError $ "Expressions with functions hidden inside not implemented: " ++ show e
 ctExp (ExpConstant c) = return TypeVoid
+
+
+ctExpAssign op e1 e2 = return TypeVoid
+
+ctExpLogOr e1 e2 = return TypeVoid
+ctExpEq e1 e2 = return TypeVoid
+ctExpNeq e1 e2 = return TypeVoid
+ctExpLt e1 e2 = return TypeVoid
+ctExpGt e1 e2 = return TypeVoid
+ctExpLe e1 e2 = return TypeVoid
+ctExpGe e1 e2 = return TypeVoid
+ctExpAdd e1 e2 = return TypeVoid
+ctExpSub e1 e2 = return TypeVoid
+ctExpMul e1 e2 = return TypeVoid
+ctExpDiv e1 e2 = return TypeVoid
+ctExpMod e1 e2 = return TypeVoid
+ctExpUnaryInc e = return TypeVoid
+ctExpUnaryDec e = return TypeVoid
+ctExpPostInc e = return TypeVoid
 
 
 makeEmptyExp :: Exp
@@ -96,9 +143,9 @@ ctCompoundStmt (StmtCompoundList stmts) = do
 ctSelectionStmt :: SelectionStmt -> TES ()
 ctSelectionStmt (StmtIf e stmt) = do
     et <- ctExp e
-    case et of
-      TypeBool -> return () --TODO make it pretty
-      otherwise -> throwError $ "Non-boolean value in 'if' condition: " ++ show e
+    if et == TypeBool
+      then return () --TODO make it pretty
+      else throwError $ "Non-boolean value in 'if' condition: " ++ show e
     ctCompoundStmt stmt
 ctSelectionStmt (StmtIfElse e stmt1 stmt2) = do
     _ <- ctSelectionStmt (StmtIf e stmt1)
@@ -106,17 +153,17 @@ ctSelectionStmt (StmtIfElse e stmt1 stmt2) = do
 ctIterationStmt :: IterationStmt -> TES ()
 ctIterationStmt (StmtWhile e stmt) = do
     et <- ctExp e
-    case et of
-      TypeBool -> return ()
-      otherwise -> throwError $ "Non-boolean value in condition of 'while' loop: " ++ show e
+    if et == TypeBool
+      then return ()
+      else throwError $ "Non-boolean value in condition of 'while' loop: " ++ show e
     ctCompoundStmt stmt
 ctIterationStmt (StmtFor1 pre cond post stmt) = do
     _ <- ctExp pre
     _ <- ctExp post
     et <- ctExp cond
-    case et of
-      TypeBool -> return ()
-      otherwise -> throwError $ "Non-boolean value in condition of 'for' loop: " ++ show cond
+    if et == TypeBool
+      then return ()
+      else throwError $ "Non-boolean value in condition of 'for' loop: " ++ show cond
     ctCompoundStmt stmt
 ctIterationStmt (StmtFor2 pre cond stmt) =
     ctIterationStmt (StmtFor1 pre cond makeEmptyExp stmt)
