@@ -67,8 +67,14 @@ ctExp (ExpFuncPArgs e args) = return TypeVoid
 ctExp (ExpConstant c) = return TypeVoid
 
 
+makeEmptyExp :: Exp
+makeEmptyExp = ExpConstant $ ExpBool ConstantTrue
+
+
 -- Statements
 
+
+--TODO catch errors as they go out
 
 ctStmt :: Stmt -> TES ()
 ctStmt (StmtExp e) = do
@@ -92,11 +98,41 @@ ctSelectionStmt (StmtIf e stmt) = do
     et <- ctExp e
     case et of
       TypeBool -> return () --TODO make it pretty
-      otherwise -> throwError $ "Non-boolean value in 'if' condition " ++ show e
+      otherwise -> throwError $ "Non-boolean value in 'if' condition: " ++ show e
     ctCompoundStmt stmt
-
+ctSelectionStmt (StmtIfElse e stmt1 stmt2) = do
+    _ <- ctSelectionStmt (StmtIf e stmt1)
+    ctCompoundStmt stmt2
 ctIterationStmt :: IterationStmt -> TES ()
-ctIterationStmt s = return () --TODO
+ctIterationStmt (StmtWhile e stmt) = do
+    et <- ctExp e
+    case et of
+      TypeBool -> return ()
+      otherwise -> throwError $ "Non-boolean value in condition of 'while' loop: " ++ show e
+    ctCompoundStmt stmt
+ctIterationStmt (StmtFor1 pre cond post stmt) = do
+    _ <- ctExp pre
+    _ <- ctExp post
+    et <- ctExp cond
+    case et of
+      TypeBool -> return ()
+      otherwise -> throwError $ "Non-boolean value in condition of 'for' loop: " ++ show cond
+    ctCompoundStmt stmt
+ctIterationStmt (StmtFor2 pre cond stmt) =
+    ctIterationStmt (StmtFor1 pre cond makeEmptyExp stmt)
+ctIterationStmt (StmtFor3 pre post stmt) =
+    ctIterationStmt (StmtFor1 pre makeEmptyExp post stmt)
+ctIterationStmt (StmtFor4 cond post stmt) =
+    ctIterationStmt (StmtFor1 makeEmptyExp cond post stmt)
+ctIterationStmt (StmtFor5 post stmt) =
+    ctIterationStmt (StmtFor1 makeEmptyExp makeEmptyExp post stmt)
+ctIterationStmt (StmtFor6 cond stmt) =
+    ctIterationStmt (StmtFor1 makeEmptyExp cond makeEmptyExp stmt)
+ctIterationStmt (StmtFor7 pre stmt) =
+    ctIterationStmt (StmtFor1 pre makeEmptyExp makeEmptyExp stmt)
+ctIterationStmt (StmtFor8 stmt) =
+    ctIterationStmt (StmtFor1 makeEmptyExp makeEmptyExp makeEmptyExp stmt)
+
 
 ctReturnStmt :: Exp -> TES ()
 ctReturnStmt e = do
