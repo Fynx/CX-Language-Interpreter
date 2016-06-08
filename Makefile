@@ -9,6 +9,7 @@ all:
 test: all
 	./interpreter test/testProg.cx
 	./interpreter test/testBuiltinFunctions.cx
+	./interpreter test/testVariableShadowing.cx
 
 clean:
 	rm -rf *.{cf,x,y}

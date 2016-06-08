@@ -8,6 +8,17 @@ import Data.Bits
 import AbsCX
 
 
+showTS :: TypeSpec -> String
+showTS TypeInt    = "Int"
+showTS TypeVoid   = "Void"
+showTS TypeString = "String"
+showTS TypeBool   = "Bool"
+
+
+showId :: Ident -> String
+showId (Ident s) = s
+
+
 type Loc = Integer
 
 data DataType = 
@@ -93,7 +104,5 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
---TODO change to FunSpec
-type FunArgs = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
---TODO change to RetVal
-type Local = DataType
+type FSpec = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
+type RetV = DataType

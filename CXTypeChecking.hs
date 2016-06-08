@@ -26,7 +26,7 @@ import ErrM
 type TStore = Map.Map Loc TypeSpec
 type RetType = TypeSpec
 
-type TypeCont = (Env, TStore, FunArgs, RetType)
+type TypeCont = (Env, TStore, FSpec, RetType)
 
 type TES a = ExceptT String (StateT TypeCont (IO)) a
 
@@ -55,7 +55,7 @@ ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stm
 
 allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
 allocFunT (Ident id) t args stmt = do
-    (env, tstore, fargs, rtype) <- lift get
+    (env, tstore, fspec, rtype) <- lift get
     loc <- lift.lift $ newTLoc tstore
     if Map.member (Ident id) env
       then
@@ -63,9 +63,8 @@ allocFunT (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc t tstore,
-                    Map.insert loc (t, args, stmt) fargs,
+                    Map.insert loc (t, args, stmt) fspec,
                     rtype)
-    liftIO $ putStrLn $ "Function " ++ id ++ " of type " ++ (show t) ++ " allocated."
     return ()
 
 
@@ -90,16 +89,15 @@ newTLoc s =
 
 doAllocVarT :: Ident -> TypeSpec -> TES ()
 doAllocVarT (Ident id) t = do
-    (env, tstore, fargs, rtype) <- lift get
+    (env, tstore, fspec, rtype) <- lift get
     loc <- lift.lift $ newTLoc tstore
-    lift $ put (Map.insert (Ident id) loc env, Map.insert loc t tstore, fargs, rtype)
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc t tstore, fspec, rtype)
     return ()
 
 
 allocVarT :: Ident -> TypeSpec -> TES ()
 allocVarT (Ident id) v = do
-    (env, tstore, fargs, _) <- lift get
-    liftIO $ putStrLn $ "Alloc var " ++ id
+    (env, _, _, _) <- lift get
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
@@ -188,7 +186,7 @@ ctExp (ExpUnaryDec e) = canAExp UDec e
 ctExp (ExpPostInc uop e) = canAExp PInc e
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
-    (env, _, fargs, _) <- lift get
+    (env, _, fspec, _) <- lift get
     argts <- mapM ctExp args
     case Map.lookup id env of
       Nothing -> do
@@ -212,7 +210,7 @@ ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
               otherwise -> throwError $ "Invalid argument of function 'stringToBool'"
           otherwise -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
       Just loc -> do
-        case Map.lookup loc fargs of
+        case Map.lookup loc fspec of
           Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
           Just (ts, rargs, _) -> do
             let rargts = map extractType rargs
@@ -358,8 +356,8 @@ ctIterationStmt (StmtFor8 stmt) =
 ctReturnStmt :: Exp -> TES ()
 ctReturnStmt e = do
     rtype <- ctExp e
-    (env, tstore, fargs, _) <- lift get
-    lift $ put $ (env, tstore, fargs, rtype)
+    (env, tstore, fspec, _) <- lift get
+    lift $ put $ (env, tstore, fspec, rtype)
     return ()
 
 
@@ -368,8 +366,8 @@ ctReturnStmt e = do
 
 ctFunction :: (Ident, Loc) -> TES ()
 ctFunction (id, loc) = do
-    (env, tstore, fargs, _) <- lift get
-    case Map.lookup loc fargs of
+    (env, tstore, fspec, _) <- lift get
+    case Map.lookup loc fspec of
       Nothing -> do
         liftIO $ putStrLn $ "Not a function: '" ++ showId id ++ "'"
         return () -- Not a function
@@ -379,7 +377,7 @@ ctFunction (id, loc) = do
         _ <- forceAllocVarsT (argsIds args) (argsTS args)
         _ <- ctCompoundStmt stmt
         (_, _, _, rtype) <- lift get
-        lift $ put $ (env, tstore, fargs, TypeVoid)
+        lift $ put $ (env, tstore, fspec, TypeVoid)
         if rtype == ts
           then return ()
           else throwError $ "Invalid return value of function " ++ showId id ++
@@ -392,18 +390,6 @@ ctFunction (id, loc) = do
             argsTS [] = []
             argsTS ((ArgVal ts id):args) = ts : argsTS args
             argsTS ((ArgRef ts id):args) = ts : argsTS args
-
-
-
-showTS :: TypeSpec -> String
-showTS TypeInt    = "Int"
-showTS TypeVoid   = "Void"
-showTS TypeString = "String"
-showTS TypeBool   = "Bool"
-
---TODO move somewhere else
-showId :: Ident -> String
-showId (Ident s) = s
 
 
 checkTypes :: TranslationUnit -> TES ()

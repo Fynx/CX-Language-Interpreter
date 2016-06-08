@@ -50,7 +50,7 @@ data Status = Success | Error String deriving (Eq, Show)
 type ParseFun a = [Token] -> Err a
 
 
-type Cont = (Env, Store, FunArgs, Local)
+type Cont = (Env, Store, FSpec, RetV)
 
 emptyCont :: Cont
 emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
@@ -159,15 +159,15 @@ newLoc s =
 
 doAllocVar :: Ident -> DataType -> ES Status
 doAllocVar (Ident id) v = do
-    (env, store, fargs, local) <- lift get
+    (env, store, fspec, retv) <- lift get
     loc <- lift.lift $ newLoc store
-    lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fargs, local)
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fspec, retv)
     return Success
 
 
 allocVar :: Ident -> DataType -> ES Status
 allocVar (Ident id) v = do
-    (env, store, fargs, local) <- lift get
+    (env, _, _, _) <- lift get
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
@@ -218,8 +218,8 @@ flattenRef t = return t
 
 setVal :: Loc -> DataType -> ES ()
 setVal loc v = do
-    (env, store, fargs, local) <- lift get
-    lift $ put (env, Map.insert loc v store, fargs, local)
+    (env, store, fspec, retv) <- lift get
+    lift $ put (env, Map.insert loc v store, fspec, retv)
 
 
 -- The variable must be previously allocated
@@ -322,8 +322,8 @@ execIterationStmt (StmtFor8 s) =
 execReturnStmt :: Exp -> ES Status
 execReturnStmt e = do
     v <- evalExp e
-    (env, store, fargs, _) <- lift get
-    lift $ put $ (env, store, fargs, v)
+    (env, store, fspec, _) <- lift get
+    lift $ put $ (env, store, fspec, v)
     return Success
 
 
@@ -343,19 +343,6 @@ execStmt (StmtDecl d) = execDeclStmt d
 
 
 -- Functions
-
---TODO use this function
-findFun :: Ident -> ES CompoundStmt
-findFun id = do
-    (env, _, fargs, _) <- lift get
-    case Map.lookup id env of
-      Nothing -> throwError $ "Unknown function name: " ++ (show id)
-      Just floc -> do
-        case Map.lookup floc fargs of
-          Nothing ->
-            throwError $ "Internal function error: " ++ (show id)
-          Just (_, _, stmt) -> return stmt
-
 
 dataTypeToString :: DataType -> ES String
 dataTypeToString TVoid = return "Invalid value"
@@ -436,30 +423,30 @@ execBuiltinFun (Ident s) args =
 
 execFun :: Ident -> [DataType] -> ES DataType
 execFun (Ident fname) args = do
-    (env, store, fargs, _) <- lift get
+    (env, store, fspec, _) <- lift get
     case Map.lookup (Ident fname) env of
       Nothing   -> execBuiltinFun (Ident fname) args
       Just floc -> do
-        case Map.lookup floc fargs of
+        case Map.lookup floc fspec of
           Nothing -> throwError $ "Internal error: function '" ++ fname ++ "'"
           Just (rType, argl, stmt) -> do
             if length argl /= length args
               then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
               else allocArgs argl args
             execCompoundStmt stmt -- TODO var cover/alloc
-            (env', store', fargs', ret') <- lift get
-            lift $ put (env, store', fargs, TVoid)
+            (env', store', fspec', retv') <- lift get
+            lift $ put (env, store', fspec, TVoid)
             case rType of
               (TypeVoid) -> return TVoid
               otherwise  ->
-                case ret' of
+                case retv' of
                   TVoid     -> throwError $ "Failed to obtain return value from function: " ++ fname
-                  otherwise -> return ret'
+                  otherwise -> return retv'
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
 allocFun (Ident id) t args stmt = do
-    (env, store, fargs, local) <- lift get
+    (env, store, fspec, retv) <- lift get
     loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
       then
@@ -467,9 +454,8 @@ allocFun (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc (TFun (Ident id)) store,
-                    Map.insert loc (t, args, stmt) fargs,
-                    local)
-    liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
+                    Map.insert loc (t, args, stmt) fspec,
+                    retv)
     return Success
 
 
@@ -503,16 +489,16 @@ runFile v f = putStrLn f >> readFile f >>= run v
 
 run :: Verbosity -> String -> IO ()
 run v s = do
+    putStrLn "Running parser."
     let ts = myLexer s in case pTranslationUnit ts of
       Bad e -> do
-        putStrLn "\nParse Failed...\n"
+        putStrLn "Parser error:"
         putStrLn e
         exitFailure
       Ok p -> do
-        putStrLn "\nParse Successful!"
         showTree v p
 
-        putStrLn "\nRunning type checking...\n"
+        putStrLn "Running type checking."
         res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
         case res of
           (Left e, _) -> do
@@ -520,23 +506,23 @@ run v s = do
             exitFailure
           (Right r, _) -> return ()
 
-        putStrLn "\nCollecting global names.\n"
+        putStrLn "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
             putStrLn $ "Runtime error: " ++ e
             exitFailure
-          (Right r, (env, store, fargs, loc)) -> do
-            putStrLn "\nExecute main program...\n"
+          (Right r, (env, store, fspec, retv)) -> do
+            putStrLn "Execute main program...\n"
             case Map.lookup (Ident "main") env of
               Nothing -> print ("'main' function not found.")
               Just _  -> do
-                res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fargs, loc)
+                res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fspec, retv)
                 case res of
                   (Left e, _) -> do
                     print ("Runtime error: " ++ e)
                     exitFailure
-                  (Right r, (env, store, fargs, loc)) ->
+                  (Right r, (env, store, fspec, retv)) ->
                     case r of
                       (TInt 0) -> do
                         putStrLn "Program successfully finished."
