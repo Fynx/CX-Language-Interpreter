@@ -288,16 +288,28 @@ execDecl (DeclDefine t i e) = do
     allocVar i v
 
 
+-- Removes the values in store that are no longer in env
+-- i.e allocations within compound statements
+cleanupVars :: ES ()
+cleanupVars = do
+    (env, store, fspec, retv) <- lift get
+    let store' = foldl (flip Map.delete) store (Map.elems env)
+    lift $ put (env, Map.difference store store', fspec, retv)
+
+
 -- Statements
 
 
 execCompoundStmt :: CompoundStmt -> ES ()
 execCompoundStmt (StmtCompoundList l) = do
-    (env, _, fspec, _) <- lift get
+    (env, store, fspec, _) <- lift get
     mapM_ execStmt l
-    (_, store, _, retv) <- lift get
-    lift $ put (env, store, fspec, retv)
-    return ()
+    (_, store', _, retv) <- lift get
+    lift $ put (env, store', fspec, retv)
+    cleanupVars
+    (env'', store'', fspec'', retv'') <- lift get
+    -- We have to do this because of cleanup
+    lift $ put (env'', Map.union store'' store, fspec'', retv'')
 execCompoundStmt StmtCompoundEmpty = return ()
 
 
@@ -461,6 +473,10 @@ execFun (Ident fname) args = do
             execCompoundStmt stmt -- TODO var cover/alloc
             (env', store', fspec', retv') <- lift get
             lift $ put (env, store', fspec, TVoid)
+            _ <- cleanupVars
+            (env'', store'', fspec'', retv'') <- lift get
+            -- We have to do this, because of cleanup
+            lift $ put (env'', Map.union store'' store, fspec'', retv'')
             case rType of
               (TypeVoid) -> return TVoid
               otherwise  ->
