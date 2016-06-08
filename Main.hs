@@ -14,6 +14,8 @@ import Control.Monad.Trans.State
 import qualified Data.Map as Map
 import Data.Maybe
 
+import Text.Read (readMaybe)
+
 import CXBase
 import CXTypeChecking
 
@@ -171,7 +173,6 @@ allocVar (Ident id) v = do
         throwError $ "Name " ++ id ++ " already exists."
       else
         doAllocVar (Ident id) v
-    liftIO $ putStrLn ("Variable " ++ id ++ " allocated")
     return Success
 
 
@@ -395,28 +396,52 @@ putStrValue v = do
     liftIO $ putStr s
 
 
-execBuiltinFun :: Ident -> [DataType] -> ES Status
+execBuiltinFun :: Ident -> [DataType] -> ES DataType
 execBuiltinFun (Ident s) args =
     case s of
-      "print"   -> do
+      "print" -> do
         mapM_ putStrValue args
         liftIO $ putStrLn ""
-        return Success
+        return TVoid
+      "stringToInt" -> do
+        arg <- singleValue args
+        case arg of
+          TString str -> case readMaybe str of
+              Nothing -> throwError $ "Runtime error: invalid stringToInt conversion from '" ++ str ++ "'"
+              Just v  -> return $ TInt v
+          otherwise -> throwError $ "Internal error: typechecking stringToInt " ++ show otherwise
+      "intToString" -> do
+        arg <- singleValue args
+        case arg of
+          TInt v -> return $ TString $ show v
+          otherwise -> throwError $ "Internal error: typechecking intToString"
+      "stringToBool" -> do
+        arg <- singleValue args
+        case arg of
+          TString "true"  -> return $ TBool True
+          TString "false" -> return $ TBool False
+          otherwise -> throwError $ "Invalid boolToString conversion from '" ++ show otherwise ++ "'"
+      "boolToString" -> do
+        arg <- singleValue args
+        case arg of
+          TBool True -> return $ TString $ "true"
+          TBool False -> return $ TString $ "false"
+          otherwise -> throwError $ "Internal error: typechecking boolToString"
       otherwise -> throwError $ "Unknown built-in function name: " ++ s
+      where
+        singleValue :: [DataType] -> ES DataType
+        singleValue [x] = unref x
+        singleValue _ = return TVoid
 
 
 execFun :: Ident -> [DataType] -> ES DataType
 execFun (Ident fname) args = do
     (env, store, fargs, _) <- lift get
     case Map.lookup (Ident fname) env of
-      Nothing   -> do
-        fstatus <- execBuiltinFun (Ident fname) args
-        case fstatus of
-          Error _ -> throwError $ "Unknown function name: " ++ fname
-          Success -> return TVoid
+      Nothing   -> execBuiltinFun (Ident fname) args
       Just floc -> do
         case Map.lookup floc fargs of
-          Nothing -> throwError $ "Internal function error: " ++ fname
+          Nothing -> throwError $ "Internal error: function '" ++ fname ++ "'"
           Just (rType, argl, stmt) -> do
             if length argl /= length args
               then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
@@ -499,10 +524,10 @@ run v s = do
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
-            print ("Runtime error: " ++ e)
+            putStrLn $ "Runtime error: " ++ e
             exitFailure
           (Right r, (env, store, fargs, loc)) -> do
-            putStrLn "\nExecute main program..."
+            putStrLn "\nExecute main program...\n"
             case Map.lookup (Ident "main") env of
               Nothing -> print ("'main' function not found.")
               Just _  -> do

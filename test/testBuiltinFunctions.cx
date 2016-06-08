@@ -1,0 +1,20 @@
+Int main()
+{
+	print("String conversion test.");
+
+	String s = "1234";
+	print("String s = ", s);
+
+	Int k = stringToInt(s);
+	print("Int k = stringToInt(s) = ", k);
+	print("intToString(k) = ", intToString(k));
+
+	String w = "true";
+	print("String w = ", w);
+	
+	Bool b = stringToBool(w);
+	print("Bool b = stringToBool(w) = ", b);
+	print("boolToString(b) = ", boolToString(b));
+
+	return 0;
+}

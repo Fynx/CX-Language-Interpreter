@@ -65,7 +65,7 @@ allocFunT (Ident id) t args stmt = do
                     Map.insert loc t tstore,
                     Map.insert loc (t, args, stmt) fargs,
                     rtype)
-    liftIO $ putStrLn ("Function " ++ id ++ " of type " ++ (show t) ++ " allocated.")
+    liftIO $ putStrLn $ "Function " ++ id ++ " of type " ++ (show t) ++ " allocated."
     return ()
 
 
@@ -189,16 +189,32 @@ ctExp (ExpPostInc uop e) = canAExp PInc e
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     (env, _, fargs, _) <- lift get
+    argts <- mapM ctExp args
     case Map.lookup id env of
       Nothing -> do
         case id of -- built-in functions
           Ident "print" -> return TypeVoid
+          Ident "intToString" ->
+            case argts of
+              [TypeInt] -> return TypeString
+              otherwise -> throwError $ "Invalid argument of function 'intToString'"
+          Ident "stringToInt" ->
+            case argts of
+              [TypeString] -> return TypeInt
+              otherwise -> throwError $ "Invalid argument of function 'stringToInt'"
+          Ident "boolToString" ->
+            case argts of
+              [TypeBool] -> return TypeString
+              otherwise -> throwError $ "Invalid argument of function 'boolToString'"
+          Ident "stringToBool" ->
+            case argts of
+              [TypeString] -> return TypeBool
+              otherwise -> throwError $ "Invalid argument of function 'stringToBool'"
           otherwise -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
       Just loc -> do
         case Map.lookup loc fargs of
           Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
           Just (ts, rargs, _) -> do
-            argts <- mapM ctExp args
             let rargts = map extractType rargs
             if compareArrays argts rargts
               then return ts
