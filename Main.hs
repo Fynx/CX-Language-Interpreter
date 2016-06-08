@@ -64,7 +64,8 @@ emptyExp = ExpConstant $ ExpBool ConstantTrue
 evalExp' :: Exp -> (DataType -> DataType) -> ES DataType
 evalExp' e f = do
     v <- evalExp e
-    return $ f v
+    ev <- unref v
+    return $ f ev
 
 
 evalExp'' :: Exp -> Exp -> (DataType -> DataType -> DataType) -> ES DataType
@@ -88,6 +89,29 @@ evalAssignOp v1 v2 OpAssignXor = elogxor v1 v2
 evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
 
 
+evalUnary :: Exp -> (DataType -> DataType) -> ES DataType
+evalUnary e f = do
+    r <- evalExp e
+    case r of
+      (TRef loc) -> do
+        v <- unref r
+        let nv = f v
+        setVal loc nv
+        return nv
+      otherwise ->
+        throwError $ "Expression " ++ (show e) ++ " is not an lvalue"
+evalPostfix :: Exp -> (DataType -> DataType) -> ES DataType
+evalPostfix e f = do
+    r <- evalExp e
+    case r of
+      (TRef loc) -> do
+        v <- unref r
+        setVal loc (f v)
+        return v
+      otherwise ->
+        throwError $ "Expression " ++ (show e) ++ " is not an lvalue"
+
+
 --TODO catch Error
 
 evalExp :: Exp -> ES DataType
@@ -95,19 +119,20 @@ evalExp (ExpAssign e1 op e2) = do
     r <- evalExp e1
     case r of
       (TRef loc) -> do
-          rv <- unref r
-          v <- evalExp e2
-          kaka <- findVal loc
-          setVal loc (evalAssignOp rv v op)
-          return r
+        rv <- unref r
+        v <- evalExp e2
+        kaka <- findVal loc
+        setVal loc (evalAssignOp rv v op)
+        return r
       otherwise ->
-          throwError $ "Expression " ++ (show e1) ++ " is not an lvalue"
+        throwError $ "Expression " ++ (show e1) ++ " is not an lvalue"
 evalExp (ExpCondition e1 e2 e3) = do
     (TBool c) <- evalExp e1
     if c
       then evalExp e2
       else evalExp e3
 evalExp (ExpLogOr e1 e2) = evalExp'' e1 e2 elogor
+evalExp (ExpLogXor e1 e2) = evalExp'' e1 e2 elogxor
 evalExp (ExpLogAnd e1 e2) = evalExp'' e1 e2 elogand
 evalExp (ExpEq e1 e2) = evalExp'' e1 e2 eeq
 evalExp (ExpNeq e1 e2) = evalExp'' e1 e2 eneq
@@ -120,16 +145,19 @@ evalExp (ExpSub e1 e2) = evalExp'' e1 e2 esub
 evalExp (ExpMul e1 e2) = evalExp'' e1 e2 emul
 evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
 evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
-evalExp (ExpUnaryInc (ExpConstant (ExpId id))) = applyToVar id einc
-evalExp (ExpUnaryDec (ExpConstant (ExpId id))) = applyToVar id edec
-evalExp (ExpPostInc uop (ExpConstant (ExpId id))) = do
-    v <- findVar id
-    return (evalUnaryOp v uop) where
+evalExp (ExpUnaryInc e) = evalUnary e einc
+evalExp (ExpUnaryDec e) = evalUnary e edec
+evalExp (ExpPostInc e) = evalPostfix e einc
+evalExp (ExpPostDec e) = evalPostfix e edec
+evalExp (ExpUnaryOp uop e) = do
+    v <- evalExp e
+    ev <- unref v
+    return (evalUnaryOp ev uop) where
         evalUnaryOp :: DataType -> UnaryOp -> DataType
-        evalUnaryOp v OpUnaryPos = upos v
-        evalUnaryOp v OpUnaryNeg = uneg v
-        evalUnaryOp v OpUnaryNot = unot v
-        evalUnaryOp v OpUnaryFlp = uflp v
+        evalUnaryOp ev OpUnaryPos = upos ev
+        evalUnaryOp ev OpUnaryNeg = uneg ev
+        evalUnaryOp ev OpUnaryNot = unot ev
+        evalUnaryOp ev OpUnaryFlp = uflp ev
 evalExp (ExpFuncP f) = evalExp (ExpFuncPArgs f [])
 evalExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     a <- mapM evalExp args

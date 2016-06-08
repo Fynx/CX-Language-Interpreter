@@ -1,0 +1,36 @@
+Int main()
+{
+	print("true || false = ", true || false);
+	print("true ^ false  = ", true ^ false);
+	print("true && false = ", true && false);
+	print("true == true = ", true == true);
+	print("true != true = ", true != true);
+	print("!true = ", !true);
+	print("5 < 7  = ", 5 < 7);
+	print("5 > 7  = ", 5 > 7);
+	print("6 <= 6 = ", 6 <= 6);
+	print("6 >= 7 = ", 6 >= 7);
+	print("6 + 7  = ", 6 + 7);
+	print("6 - 7  = ", 6 - 7);
+	print("6 * 7  = ", 6 * 7);
+	print("6 / 7  = ", 6 / 7);
+	print("6 % 3  = ", 6 % 3);
+	
+	Int a = 5;
+	print("Int a = 5, ++a = ", ++a);
+	Int b = 6;
+	print("Int b = 6, b++ = ", b++, " (in the expression)");
+	print("           b   = ", b, " (after the expression");
+
+	Int c = 5;
+	print("Int c = 5, --c = ", --c);
+	Int d = 6;
+	print("Int d = 6, d-- = ", d--, " (in the expression)");
+	print("           d   = ", d, " (after the expression");
+	
+	print("+d = ", +d);
+	print("-d = ", -d);
+	print("~d = ", ~d, " (Data.Bits.complement)");
+	
+	return 0;
+}

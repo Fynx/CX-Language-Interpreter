@@ -32,7 +32,7 @@ data DataType =
 
 
 elogxor :: DataType -> DataType -> DataType
-elogxor (TBool v1) (TBool v2) = TBool $ (v1 && v2) || ((not v1) && (not v2))
+elogxor (TBool v1) (TBool v2) = eneq (TBool v1) (TBool v2)
 
 elogor :: DataType -> DataType -> DataType
 elogor (TBool v1) (TBool v2) = TBool (v1 || v2)
@@ -46,7 +46,7 @@ eeq (TInt v1) (TInt v2) = TBool (v1 == v2)
 eeq (TString v1) (TString v2) = TBool (v1 == v2)
 
 eneq :: DataType -> DataType -> DataType
-eneq t1 t2 = eeq t1 t2
+eneq t1 t2 = unot $ eeq t1 t2
 
 elt :: DataType -> DataType -> DataType
 elt (TInt v1) (TInt v2) = TBool (v1 < v2)

@@ -147,8 +147,8 @@ forceAllocVarsT (id:ids) (v:vs) = do
 
 data Operation =
     As | AsMul | AsDiv | AsMod | AsAdd | AsSub | AsAnd | AsOr |
-    LogAnd | LogOr | Ieq | Neq | Lt | Gt | Le | Ge | Add | Sub | Mul | Div | Mod |
-    UInc | UDec | PInc | PDec
+    LogAnd | LogOr | LogXor | Ieq | Neq | Lt | Gt | Le | Ge | Add | Sub | Mul | Div | Mod |
+    UInc | UDec | PInc | PDec | UPos | UNeg | UNot | UFlp
         deriving Show
 
 
@@ -169,6 +169,7 @@ ctExp (ExpCondition cond e1 e2) = do
       then return TypeBool
       else throwError $ "Non-boolean value in condition: " ++ show cond
 ctExp (ExpLogOr e1 e2) = canAExp2 LogOr e1 e2
+ctExp (ExpLogXor e1 e2) = canAExp2 LogXor e1 e2
 ctExp (ExpLogAnd e1 e2) = canAExp2 LogAnd e1 e2
 ctExp (ExpEq e1 e2) = canAExp2 Ieq e1 e2
 ctExp (ExpNeq e1 e2) = canAExp2 Neq e1 e2
@@ -183,7 +184,13 @@ ctExp (ExpDiv e1 e2) = canAExp2 Div e1 e2
 ctExp (ExpMod e1 e2) = canAExp2 Mod e1 e2
 ctExp (ExpUnaryInc e) = canAExp UInc e
 ctExp (ExpUnaryDec e) = canAExp UDec e
-ctExp (ExpPostInc uop e) = canAExp PInc e --TODO fix it it's something else
+ctExp (ExpPostInc e) = canAExp UInc e
+ctExp (ExpPostDec e) = canAExp UDec e
+ctExp (ExpUnaryOp uop e) = ctExpUnaryOp uop e where
+    ctExpUnaryOp OpUnaryPos e = canAExp UPos e
+    ctExpUnaryOp OpUnaryNeg e = canAExp UNeg e
+    ctExpUnaryOp OpUnaryNot e = canAExp UNot e
+    ctExpUnaryOp OpUnaryFlp e = canAExp UFlp e
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     (env, _, fspec, _) <- lift get
@@ -254,6 +261,10 @@ canAF UInc TypeInt = return TypeInt
 canAF UDec TypeInt = return TypeInt
 canAF PInc TypeInt = return TypeInt
 canAF PDec TypeInt = return TypeInt
+canAF UPos TypeInt = return TypeInt
+canAF UNeg TypeInt = return TypeInt
+canAF UNot TypeBool = return TypeBool
+canAF UFlp TypeInt = return TypeInt
 canAF op t = throwError $ "Cannot use operation '" ++ show op ++ "' on type '" ++ showTS t ++ "'"
 
 
@@ -267,6 +278,7 @@ canAF2 AsSub t1 t2 = canAF2 Sub t1 t2
 canAF2 AsAnd t1 t2 = canAF2 LogAnd t1 t2
 canAF2 AsOr t1 t2 = canAF2 LogOr t1 t2
 canAF2 LogOr TypeBool TypeBool = return TypeBool
+canAF2 LogXor TypeBool TypeBool = return TypeBool
 canAF2 LogAnd TypeBool TypeBool = return TypeBool
 canAF2 Ieq TypeBool TypeBool = return TypeBool
 canAF2 Ieq TypeInt TypeInt = return TypeBool

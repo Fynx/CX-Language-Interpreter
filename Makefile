@@ -8,13 +8,16 @@ all:
 	cabal build
 	cp dist/build/CX/CX interpreter
 
-test: all
-	./interpreter test/testProg.cx
-	./interpreter test/testBuiltinFunctions.cx
-	./interpreter test/testVariableShadowing.cx
-	./interpreter test/recursiveFunction.cx
-	- ./interpreter test/bad/internalFunctionArg.cx
-	- ./interpreter test/bad/incorrectFunctionArgs.cx
+test_good: all
+	./interpreter good/testProg.cx
+	./interpreter good/testBuiltinFunctions.cx
+	./interpreter good/testVariableShadowing.cx
+	./interpreter good/recursiveFunction.cx
+	./interpreter good/operators.cx
+
+test_bad: all
+	- ./interpreter bad/internalFunctionArg.cx
+	- ./interpreter bad/incorrectFunctionArgs.cx
 
 clean:
 	rm -rf *.{cf,x,y}

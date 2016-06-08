@@ -75,6 +75,7 @@ StmtFor8.  IterationStmt ::= "for" "," "," CompoundStmt ;
 ExpAssign.    Exp2 ::= Exp13 AssignmentOp Exp2 ;
 ExpCondition. Exp3 ::= Exp4 "?" Exp ":" Exp3 ;
 ExpLogOr.     Exp4 ::= Exp4 "||" Exp5 ;
+ExpLogXor.    Exp4 ::= Exp4 "^" Exp5 ;
 ExpLogAnd.    Exp5 ::= Exp5 "&&" Exp6 ;
 ExpEq.        Exp7 ::= Exp7 "==" Exp8 ;
 ExpNeq.       Exp7 ::= Exp7 "!=" Exp8 ;
@@ -88,9 +89,11 @@ ExpMul.       Exp11 ::= Exp11 "*" Exp12 ;
 ExpDiv.       Exp11 ::= Exp11 "/" Exp12 ;
 ExpMod.       Exp11 ::= Exp11 "%" Exp12 ;
 
-ExpUnaryInc.  Exp13 ::= "++" Exp13 ;
-ExpUnaryDec.  Exp13 ::= "--" Exp13 ;
-ExpPostInc.   Exp13 ::= UnaryOp Exp12 ;
+ExpPostInc.   Exp12 ::= Exp13 "++" ;
+ExpPostDec.   Exp12 ::= Exp13 "--" ;
+ExpUnaryInc.  Exp13 ::= "++" Exp14 ;
+ExpUnaryDec.  Exp13 ::= "--" Exp14 ;
+ExpUnaryOp.   Exp13 ::= UnaryOp Exp14 ;
 ExpFuncP.     Exp14 ::= Exp14 "(" ")" ;
 ExpFuncPArgs. Exp14 ::= Exp14 "(" [Exp2] ")" ;
 
@@ -104,8 +107,6 @@ ExpString. Constant ::= String ;
 coercions Exp 15 ;
 
 
-OpUnaryRef. UnaryOp ::= "&" ;
-OpUnaryPtr. UnaryOp ::= "*" ;
 OpUnaryPos. UnaryOp ::= "+" ;
 OpUnaryNeg. UnaryOp ::= "-" ;
 OpUnaryNot. UnaryOp ::= "!" ;
@@ -119,8 +120,8 @@ OpAssignMod. AssignmentOp ::= "%=" ;
 OpAssignAdd. AssignmentOp ::= "+=" ;
 OpAssignSub. AssignmentOp ::= "-=" ;
 OpAssignAnd. AssignmentOp ::= "&=" ;
-OpAssignXor. AssignmentOp ::= "^=" ;
 OpAssignOr.  AssignmentOp ::= "|=" ;
+OpAssignXor. AssignmentOp ::= "^=" ;
 
 
 ConstantTrue.  BoolConstant ::= "true" ;
