@@ -244,9 +244,10 @@ ctExp (ExpConstant c) = ctExpConstant c where
 
 
 canAExp :: Operation -> Exp -> TES TypeSpec
-canAExp op e = do
-    ts <- ctExp e
-    canAF op ts --TODO catch error
+canAExp op e = do {
+    ts <- ctExp e;
+    canAF op ts
+    } `catchError` ((\e err -> throwError $ show err ++ "In expression " ++ show e) e)
 
 
 canAExp2 :: Operation -> Exp -> Exp -> TES TypeSpec
@@ -311,7 +312,7 @@ ctStmt :: Stmt -> TES ()
 ctStmt (StmtExp e) = do {
     _ <- ctExp e;
     return ()
-    } `catchError` ((\e err -> throwError $ show err ++ "In expression " ++ show e) e)
+    } `catchError` ((\e err -> throwError (show err ++ "\nIn expression " ++ show e)) e)
 ctStmt (StmtCompound stmt) = ctCompoundStmt stmt
 ctStmt (StmtSelection stmt) = ctSelectionStmt stmt
 ctStmt (StmtIteration stmt) = ctIterationStmt stmt
@@ -332,7 +333,7 @@ ctSelectionStmt :: SelectionStmt -> TES ()
 ctSelectionStmt (StmtIf e stmt) = do
     et <- ctExp e
     if et == TypeBool
-      then return () --TODO make it pretty
+      then return ()
       else throwError $ "Non-boolean value in 'if' condition: " ++ show e
     ctCompoundStmt stmt
 ctSelectionStmt (StmtIfElse e stmt1 stmt2) = do
@@ -385,11 +386,8 @@ ctFunction (id, loc) = do
     (env, tstore, fspec, _) <- lift get
     case Map.lookup loc fspec of
       Nothing -> do
---        liftIO $ putStrLn $ "Not a function: '" ++ showId id ++ "'"
-        return () -- Not a function
+        return ()
       Just (ts, args, stmt) -> do
---        liftIO $ putStrLn $ "Check function '" ++ showId id ++ "' with type " ++ showTS ts ++
---                            " and args " ++ show args ++ "\n"
         _ <- forceAllocVarsT (argsIds args) (argsTS args)
         _ <- ctCompoundStmt stmt
         (_, _, _, rtype) <- lift get

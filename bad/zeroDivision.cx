@@ -1,0 +1,6 @@
+Int main()
+{
+	print("5 / 0 = ", 5 / 0);
+
+	return 0;
+}

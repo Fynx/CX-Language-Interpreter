@@ -16,8 +16,10 @@ test_good: all
 	./interpreter good/basicConstructs.cx
 
 test_bad: all
-	- ./interpreter bad/internalFunctionArg.cx
+	- ./interpreter bad/builtinFunctionArg.cx
 	- ./interpreter bad/incorrectFunctionArgs.cx
+	- ./interpreter bad/zeroDivision.cx
+	- ./interpreter bad/operatorArg.cx
 
 clean:
 	rm -rf *.{cf,x,y}

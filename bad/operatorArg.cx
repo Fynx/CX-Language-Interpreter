@@ -1,0 +1,7 @@
+Int main()
+{
+	Int a = 5;
+	Bool b = true;
+	print(b == a);
+	return 0;
+}

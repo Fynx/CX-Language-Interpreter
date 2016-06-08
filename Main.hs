@@ -69,12 +69,29 @@ evalExp' e f = do
 
 
 evalExp'' :: Exp -> Exp -> (DataType -> DataType -> DataType) -> ES DataType
-evalExp'' e1 e2 f = do
+evalExp'' e1 e2 f = evalExpSafe'' e1 e2 f (\_ _ -> return ())
+--    v1 <- evalExp e1
+--    v2 <- evalExp e2
+--    ev1 <- unref v1
+--    ev2 <- unref v2
+--    return $ f ev1 ev2
+
+
+-- evalExp with checking the arguments
+evalExpSafe'' :: Exp -> Exp -> (DataType -> DataType -> DataType) ->
+                 (DataType -> DataType -> ES ()) -> ES DataType
+evalExpSafe'' e1 e2 f check = do
     v1 <- evalExp e1
     v2 <- evalExp e2
     ev1 <- unref v1
     ev2 <- unref v2
+    _ <- check ev1 ev2
     return $ f ev1 ev2
+
+
+checkZeroDivision :: DataType -> DataType -> ES ()
+checkZeroDivision _ (TInt 0) = throwError $ "Division by zero"
+checkZeroDivision _ _ = return ()
 
 
 evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
@@ -143,8 +160,8 @@ evalExp (ExpGe e1 e2) = evalExp'' e1 e2 ege
 evalExp (ExpAdd e1 e2) = evalExp'' e1 e2 eadd
 evalExp (ExpSub e1 e2) = evalExp'' e1 e2 esub
 evalExp (ExpMul e1 e2) = evalExp'' e1 e2 emul
-evalExp (ExpDiv e1 e2) = evalExp'' e1 e2 ediv
-evalExp (ExpMod e1 e2) = evalExp'' e1 e2 emod
+evalExp (ExpDiv e1 e2) = evalExpSafe'' e1 e2 ediv checkZeroDivision
+evalExp (ExpMod e1 e2) = evalExpSafe'' e1 e2 emod checkZeroDivision
 evalExp (ExpUnaryInc e) = evalUnary e einc
 evalExp (ExpUnaryDec e) = evalUnary e edec
 evalExp (ExpPostInc e) = evalPostfix e einc
@@ -555,12 +572,12 @@ run v s = do
           (Right r, (env, store, fspec, retv)) -> do
             putStrLnV v "Execute main program...\n"
             case Map.lookup (Ident "main") env of
-              Nothing -> print ("'main' function not found.")
+              Nothing -> print "'main' function not found."
               Just _  -> do
                 res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fspec, retv)
                 case res of
                   (Left e, _) -> do
-                    print ("Runtime error: " ++ e)
+                    putStrLn $ "Runtime error: " ++ e
                     exitFailure
                   (Right r, (env, store, fspec, retv)) ->
                     case r of
