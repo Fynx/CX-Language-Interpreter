@@ -18,5 +18,24 @@ Int main()
 	print("Passing b to function f");
 	f(b);
 
+	print("Entering 'for' loop with variable c declared inside");
+	Int i;
+	for i = 0, i < 3, ++i {
+		Int c = i;
+		print("Variable c = i = ", c);
+	}
+
+	print("Entering condition statement with variable c declared inside");
+	if b < 3 {
+		Int c = 5;
+		print("Variable c = ", c);
+	}
+
+	print("Entering a stray compound statement with variable c declared inside");
+	{
+		Int c = 7;
+		print("Variable c = ", c);
+	}
+
 	return 0;
 }

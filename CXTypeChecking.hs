@@ -297,7 +297,10 @@ makeEmptyExp = ExpConstant $ ExpBool ConstantTrue
 
 ctStmt :: Stmt -> TES ()
 ctStmt (StmtExp e) = do
+    (env, tstore, fspec, _) <- lift get
     _ <- ctExp e
+    (_, _, _, rtype) <- lift get
+    lift $ put (env, tstore, fspec, rtype)
     return ()
 ctStmt (StmtCompound stmt) = ctCompoundStmt stmt
 ctStmt (StmtSelection stmt) = ctSelectionStmt stmt
