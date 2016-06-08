@@ -1,8 +1,9 @@
 Int a = 1;
 
-Void f(Int a)
+Void f(Int a, Int &b)
 {
 	print("Argument a in function = ", a);
+	print("Argument b in function passed by reference, ++b = ", ++b);
 }
 
 Int main()
@@ -10,29 +11,31 @@ Int main()
 	print("Global variable a = ", a);
 
 	Int b = 2;
+	Int c = 3;
 
-	print("Local variable b = ", b);
+	print("Local variables b = ", b, ", c = ", c);
 
-	print("Passing b to function f");
-	f(b);
+	print("Passing b, c to function f (Int a, Int &b)");
+	f(b, c);
+	print("Returned from function, modified value of c = ", c);
 
-	print("Entering 'for' loop with variable c declared inside");
+	print("Entering 'for' loop with variable d declared inside");
 	Int i;
 	for i = 0, i < 3, ++i {
-		Int c = i;
-		print("Variable c = i = ", c);
+		Int d = i;
+		print("Variable d = i = ", d);
 	}
 
-	print("Entering condition statement with variable c declared inside");
+	print("Entering condition statement with variable d declared inside");
 	if b < 3 {
-		Int c = 5;
-		print("Variable c = ", c);
+		Int d = 5;
+		print("Variable d = ", d);
 	}
 
-	print("Entering a stray compound statement with variable c declared inside");
+	print("Entering a stray compound statement with variable d declared inside");
 	{
-		Int c = 7;
-		print("Variable c = ", c);
+		Int d = 7;
+		print("Variable d = ", d);
 	}
 
 	print("");

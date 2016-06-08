@@ -14,11 +14,10 @@ Int multByTwo(Int a)
 
 Void addFive(Int &a)
 {
-	print("Entered function addFive with arg = ", a);
+	print("Entered function addFive with arg (ref) = ", a);
 	a += 5;
 }
 
-/** Passing references doesn't work yet. */
 Int f(Int a)
 {
 	print("Entering function f");
@@ -48,17 +47,14 @@ Int f(Int a)
 	print("Current value of i = ", i);
 	print();
 	
-	print("Loop and conditional statements scopes not working yet, either.");
-	print("Exit function f with return value = 4 (because why not).");
-
-
 	Int r = 5;
+
+	print("Assigning a return value before the function ends = ", 4);
+	return 4;
 
 	r = x = 2;
 	print("Chain assignment 'r = x = 2'");
 	print("r = ", r, ", x = ", x);
-
-	return 4;
 }
 
 Int main()

@@ -310,10 +310,10 @@ makeEmptyExp = ExpConstant $ ExpBool ConstantTrue
 
 
 ctStmt :: Stmt -> TES ()
-ctStmt (StmtExp e) = do {
-    _ <- ctExp e;
+ctStmt (StmtExp e) = do
+    _ <- ctExp e
     return ()
-    } `catchError` ((\e err -> throwError (show err ++ "\nIn expression " ++ show e)) e)
+--    } `catchError` ((\e err -> throwError (show err ++ "\nIn expression " ++ show e)) e)
 ctStmt (StmtCompound stmt) = ctCompoundStmt stmt
 ctStmt (StmtSelection stmt) = ctSelectionStmt stmt
 ctStmt (StmtIteration stmt) = ctIterationStmt stmt

@@ -30,7 +30,6 @@ import ErrM
 
 -- Debug
 
-
 type Verbosity = Int
 
 putStrV :: Verbosity -> String -> IO ()
@@ -89,6 +88,7 @@ checkZeroDivision _ (TInt 0) = throwError $ "Division by zero"
 checkZeroDivision _ _ = return ()
 
 
+-- Different assignment operators, require and return an lvalue
 evalAssignOp :: DataType -> DataType -> AssignmentOp -> DataType
 evalAssignOp v1 v2 OpAssign = v2
 evalAssignOp v1 v2 OpAssignMul = emul v1 v2
@@ -101,6 +101,7 @@ evalAssignOp v1 v2 OpAssignXor = elogxor v1 v2
 evalAssignOp v1 v2 OpAssignOr  = elogor v1 v2
 
 
+-- Auxiliary functions for (++/--) operators, postfix and prefix
 evalUnary :: Exp -> (DataType -> DataType) -> ES DataType
 evalUnary e f = do
     r <- evalExp e
@@ -131,7 +132,6 @@ evalExp (ExpAssign e1 op e2) = do
       (TRef loc) -> do
         rv <- unref r
         v <- evalExp e2
-        kaka <- findVal loc
         setVal loc (evalAssignOp rv v op)
         return r
       otherwise ->
@@ -187,6 +187,8 @@ evalExp exp = throwError $ "Internal error: expression " ++ (show exp)
 
 -- Declarations
 
+-- New location that is not in store, it's a pretty safe function, assuming the program
+-- is not going to run out of integers while allocating variables
 newLoc :: Store -> IO Loc
 newLoc s =
     return $ (maximum $ k s) + 1 where
@@ -194,6 +196,7 @@ newLoc s =
             | otherwise     = keys s where
             keys s = Map.keys s
 
+-- A whole lot of auxiliary functions
 
 doAllocVar :: Ident -> DataType -> ES ()
 doAllocVar (Ident id) v = do
@@ -243,7 +246,7 @@ unref t = do
     return t
 
 
--- Flattens the chain of references
+-- Flattens the chain of references to one reference or returns the value
 flattenRef :: DataType -> ES DataType
 flattenRef (TRef loc) = do
     v <- findVal loc
@@ -266,6 +269,7 @@ setVar id v = do
     setVal loc v
 
 
+-- Applies a function to a variable
 applyToVar :: Ident -> (DataType -> DataType) -> ES DataType
 applyToVar id f = do
     v <- findVar id
@@ -282,6 +286,7 @@ allocVars (id:ids) (v:vs) = do
     allocVars ids vs
 
 
+-- Use this functions while allocating args for function (shadowing)
 forceAllocVars :: [Ident] -> [DataType] -> ES ()
 forceAllocVars [] [] = return ()
 forceAllocVars (id:ids) (v:vs) = do
@@ -289,6 +294,9 @@ forceAllocVars (id:ids) (v:vs) = do
     forceAllocVars ids vs
 
 
+-- It's possible to assign an initial value only when declaring ONE variable
+-- Incorrect: Int a = 5, b;
+-- Correct:   Int a = 5; Int b;
 execDecl :: Decl -> ES ()
 execDecl (DeclDefault t is) = do
     mapM_ (flip allocVar (defaultValue t)) is
@@ -300,6 +308,8 @@ execDecl (DeclDefine t i e) = do
 
 -- Removes the values in store that are no longer in env
 -- i.e allocations within compound statements
+-- In case of chain function invocation (as in recursion)
+-- cleans also the necessary values, need to remember about this
 cleanupVars :: ES ()
 cleanupVars = do
     (env, store, fspec, retv) <- lift get
@@ -309,6 +319,8 @@ cleanupVars = do
 
 -- Statements
 
+-- Literally everything surrounded by {} parenthesis
+-- It's possible to allocate variables inside, they're cleaned afterwards
 execCompoundStmt :: CompoundStmt -> ES ()
 execCompoundStmt (StmtCompoundList l) = do
     (env, store, fspec, _) <- lift get
@@ -332,6 +344,9 @@ execSelectionStmt (StmtIfElse e s1 s2) = do
       otherwise    -> execCompoundStmt s2
 
 
+-- while cond {}
+-- for pre, cond, post {}
+-- Do NOT use ';' like in C, it won't work
 execIterationStmt :: IterationStmt -> ES ()
 execIterationStmt (StmtWhile e s) = do
     (TBool v) <- evalExp e
@@ -362,6 +377,7 @@ execIterationStmt (StmtFor8 s) =
     execIterationStmt $ StmtFor1 emptyExp emptyExp emptyExp s
 
 
+-- Does NOT escape the function, only sets the return value
 execReturnStmt :: Exp -> ES ()
 execReturnStmt e = do
     v <- evalExp e
@@ -506,6 +522,7 @@ allocFun (Ident id) t args stmt = do
     return ()
 
 
+-- Only registers the function (type, id, args, body) in carried state
 execFunctionDef :: FunctionDef -> ES ()
 execFunctionDef (FunctionArgsP t id args cstmt) = do
     allocFun id t args cstmt
@@ -531,6 +548,7 @@ runFile :: Verbosity -> FilePath -> IO ()
 runFile v f = readFile f >>= run v
 
 
+-- Allows for a little bit of verbosity if required
 putStrLnV :: Verbosity -> String -> IO ()
 putStrLnV v s | v > 0     = putStrLn s
               | otherwise = return ()

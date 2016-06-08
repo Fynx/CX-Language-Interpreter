@@ -35,6 +35,7 @@ Język podobny do C, z pewnymi estetycznymi i praktycznymi różnicami.
 
 
 ### Wymagania projektowe
+
 * typy - Int, String, Bool
 * arytmetyka, porównania, cały szereg operatorów
 * pętle i wyrażenia warunkowe (_while_, _for_, _if_, _if-else_)
@@ -42,8 +43,7 @@ Język podobny do C, z pewnymi estetycznymi i praktycznymi różnicami.
 * built-in functions: print, konwersja na/ze stringów
 * przesłanianie i statyczne wiązanie
 * statyczne typowanie
-* obsługa błędów wykonania (tutaj zasadniczo tylko dzielenie przez zero, nie przewidziałem
-  innych możliwych błędów)
+* obsługa błędów wykonania
 * argumenty funkcji jako wartość lub referencja
 
 
@@ -75,17 +75,23 @@ poprawnego programu musi zwracać 0. Jest to sprawdzane już na poziomie typów.
   podczas gdy w języku stałe logiczne to _true_ i _false_)
 
 
-### Testy
+### Pliki
 
-#### Good
+#### Kod
+* EBNF/CX.cf - gramatyka
+* Main.hs - główny program
+* CXBase.hs - funkcje i deklaracje pomocnicze
+* CXTypeChecking.hs - sprawdzanie typów
+
+#### Testy: Good
 * testProg.cx - testowy program ogólnie wykorzystujący możliwości interpretera
 * basicConstructs.cx - pętle _for_ i _while_, warunki _if_ i _if-else_
 * operators.cx - wszelkie operatory arytmetyczne i logiczne
 * builtinFunctions.cx - wbudowane funkcje
 * recursiveFunction.cx - prosta funkcja rekurencyjna
-* variableShadowing.cx - przesłanianie wartości argumentami funkcji
+* variableShadowing.cx - przesłanianie wartości argumentami funkcji + referencje
 
-#### Bad
+#### Testy: Bad
 * badForLoop.cx - błąd parsowania przy C-style _for_ loop ze średnikami
 * builtinFunctionArg.cx - błąd typów w argumentach funkcji konwersji stringów
 * incorrectFunctionArgs.cx - błąd typów w argumentach funkcji użytkownika
