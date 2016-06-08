@@ -10,6 +10,7 @@ Int factorial(Int a)
 Int main()
 {
 	print("Factorial of 5 = ", factorial(5));
+	print("");
 
 	return 0;
 }

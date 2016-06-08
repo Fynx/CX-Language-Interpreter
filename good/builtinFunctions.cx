@@ -1,7 +1,5 @@
 Int main()
 {
-	print("String conversion test");
-
 	String s = "1234";
 	print("String s = ", s);
 
@@ -11,10 +9,12 @@ Int main()
 
 	String w = "true";
 	print("String w = ", w);
-	
+
 	Bool b = stringToBool(w);
 	print("Bool b = stringToBool(w) = ", b);
 	print("boolToString(b) = ", boolToString(b));
+
+	print("");
 
 	return 0;
 }

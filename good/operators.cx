@@ -31,6 +31,8 @@ Int main()
 	print("+d = ", +d);
 	print("-d = ", -d);
 	print("~d = ", ~d, " (Data.Bits.complement)");
-	
+
+	print("");
+
 	return 0;
 }

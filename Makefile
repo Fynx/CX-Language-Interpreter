@@ -9,11 +9,11 @@ all:
 	cp dist/build/CX/CX interpreter
 
 test_good: all
-	./interpreter good/testProg.cx
-	./interpreter good/testBuiltinFunctions.cx
-	./interpreter good/testVariableShadowing.cx
+	./interpreter good/builtinFunctions.cx
+	./interpreter good/variableShadowing.cx
 	./interpreter good/recursiveFunction.cx
 	./interpreter good/operators.cx
+	./interpreter good/basicConstructs.cx
 
 test_bad: all
 	- ./interpreter bad/internalFunctionArg.cx

@@ -1,0 +1,33 @@
+Int main()
+{
+	Bool b = true;
+	print("b = ", b);
+	print("> if b { print \"Good\" }");
+
+	if b {
+		print("Good");
+	}
+
+	print("> if not b { print \"Bad\" }");
+	print("> else { print \"Good\" }");
+	if !b {
+		print("Bad");
+	} else {
+		print("Good");
+	}
+
+	Int i;
+	print("> for i = 0, i < 3, ++i { print(i) }");
+	for i = 0, i < 3, ++i {
+		print(i);
+	}
+	i = 2;
+	print("i = ", i);
+	print("> while i > 0 { print(i); i-- }");
+	while i > 0 {
+		print(i);
+		i--;
+	}
+
+	return 0;
+}

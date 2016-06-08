@@ -314,16 +314,13 @@ execCompoundStmt StmtCompoundEmpty = return ()
 
 
 execSelectionStmt :: SelectionStmt -> ES ()
-execSelectionStmt (StmtIf e s) = do
-    (TBool c) <- evalExp e
-    if c
-      then execCompoundStmt s
-      else return ()
+execSelectionStmt (StmtIf e s) = execSelectionStmt (StmtIfElse e s StmtCompoundEmpty)
 execSelectionStmt (StmtIfElse e s1 s2) = do
-    (TBool c) <- evalExp e
-    if c
-      then execCompoundStmt s1
-      else execCompoundStmt s2
+    v <- evalExp e
+    c <- unref v
+    case c of
+      (TBool True) -> execCompoundStmt s1
+      otherwise    -> execCompoundStmt s2
 
 
 execIterationStmt :: IterationStmt -> ES ()
@@ -522,12 +519,17 @@ execTranslationUnit (Program externalDecl) = do
 
 
 runFile :: Verbosity -> FilePath -> IO ()
-runFile v f = putStrLn f >> readFile f >>= run v
+runFile v f = readFile f >>= run v
+
+
+putStrLnV :: Verbosity -> String -> IO ()
+putStrLnV v s | v > 0     = putStrLn s
+              | otherwise = return ()
 
 
 run :: Verbosity -> String -> IO ()
 run v s = do
-    putStrLn "Running parser."
+    putStrLnV v "Running parser."
     let ts = myLexer s in case pTranslationUnit ts of
       Bad e -> do
         putStrLn "Parser error:"
@@ -536,7 +538,7 @@ run v s = do
       Ok p -> do
         showTree v p
 
-        putStrLn "Running type checking."
+        putStrLnV v "Running type checking."
         res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
         case res of
           (Left e, _) -> do
@@ -544,14 +546,14 @@ run v s = do
             exitFailure
           (Right r, _) -> return ()
 
-        putStrLn "Collecting global names."
+        putStrLnV v "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
             putStrLn $ "Runtime error: " ++ e
             exitFailure
           (Right r, (env, store, fspec, retv)) -> do
-            putStrLn "Execute main program...\n"
+            putStrLnV v "Execute main program...\n"
             case Map.lookup (Ident "main") env of
               Nothing -> print ("'main' function not found.")
               Just _  -> do
@@ -563,7 +565,7 @@ run v s = do
                   (Right r, (env, store, fspec, retv)) ->
                     case r of
                       (TInt 0) -> do
-                        putStrLn "Program successfully finished.\n"
+                        putStrLnV v "Program successfully finished.\n"
                         exitSuccess
                       (TInt k) -> do
                         putStrLn $ "Program finished with error code " ++ (show k) ++ ".\n"

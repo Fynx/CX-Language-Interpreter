@@ -7,13 +7,12 @@ Void f(Int a)
 
 Int main()
 {
-
 	print("Global variable a = ", a);
-	
+
 	Int b = 2;
-	
+
 	print("Local variable b = ", b);
-	
+
 	print("Passing b to function f");
 	f(b);
 
@@ -35,6 +34,8 @@ Int main()
 		Int c = 7;
 		print("Variable c = ", c);
 	}
+
+	print("");
 
 	return 0;
 }
