@@ -45,7 +45,6 @@ showTree v tree = do
 -- Interpreter
 
 type ES a = ExceptT String (StateT Cont (IO)) a
-data Status = Success | Error String deriving (Eq, Show)
 
 type ParseFun a = [Token] -> Err a
 
@@ -147,6 +146,7 @@ evalExp (ExpConstant c) = evalConstantType c where
     evalConstantType (ExpString s) = return $ TString s
 evalExp exp = throwError $ "Internal error: expression " ++ (show exp)
 
+
 -- Declarations
 
 newLoc :: Store -> IO Loc
@@ -157,15 +157,15 @@ newLoc s =
             keys s = Map.keys s
 
 
-doAllocVar :: Ident -> DataType -> ES Status
+doAllocVar :: Ident -> DataType -> ES ()
 doAllocVar (Ident id) v = do
     (env, store, fspec, retv) <- lift get
     loc <- lift.lift $ newLoc store
     lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fspec, retv)
-    return Success
+    return ()
 
 
-allocVar :: Ident -> DataType -> ES Status
+allocVar :: Ident -> DataType -> ES ()
 allocVar (Ident id) v = do
     (env, _, _, _) <- lift get
     if Map.member (Ident id) env
@@ -173,7 +173,6 @@ allocVar (Ident id) v = do
         throwError $ "Name " ++ id ++ " already exists."
       else
         doAllocVar (Ident id) v
-    return Success
 
 
 findLoc :: Ident -> ES Loc
@@ -238,58 +237,56 @@ applyToVar id f = do
 
 
 -- These functions is supposed to be called with lists of exact same length.
-allocVars :: [Ident] -> [DataType] -> ES Status
-allocVars [] [] = return Success
+allocVars :: [Ident] -> [DataType] -> ES ()
+allocVars [] [] = return ()
 allocVars (id:ids) (v:vs) = do
     allocVar id v
     allocVars ids vs
 
 
-forceAllocVars :: [Ident] -> [DataType] -> ES Status
-forceAllocVars [] [] = return Success
+forceAllocVars :: [Ident] -> [DataType] -> ES ()
+forceAllocVars [] [] = return ()
 forceAllocVars (id:ids) (v:vs) = do
     doAllocVar id v
     forceAllocVars ids vs
 
 
-execDecl :: Decl -> ES Status
+execDecl :: Decl -> ES ()
 execDecl (DeclDefault t is) = do
     mapM_ (flip allocVar (defaultValue t)) is
-    return Success
+    return ()
 execDecl (DeclDefine t i e) = do
     v <- evalExp e
     allocVar i v
-    return Success
 
 
 -- Statements
 
 
-execCompoundStmt :: CompoundStmt -> ES Status
+execCompoundStmt :: CompoundStmt -> ES ()
 execCompoundStmt (StmtCompoundList l) = do
+    (env, _, fspec, _) <- lift get
     mapM_ execStmt l
-    return Success
-execCompoundStmt StmtCompoundEmpty = return Success
+    (_, store, _, retv) <- lift get
+    lift $ put (env, store, fspec, retv)
+    return ()
+execCompoundStmt StmtCompoundEmpty = return ()
 
 
-execSelectionStmt :: SelectionStmt -> ES Status
+execSelectionStmt :: SelectionStmt -> ES ()
 execSelectionStmt (StmtIf e s) = do
     (TBool c) <- evalExp e
     if c
-      then do
-        execCompoundStmt s
-        return Success
-      else
-        return Success
+      then execCompoundStmt s
+      else return ()
 execSelectionStmt (StmtIfElse e s1 s2) = do
     (TBool c) <- evalExp e
     if c
       then execCompoundStmt s1
       else execCompoundStmt s2
-    return Success
 
 
-execIterationStmt :: IterationStmt -> ES Status
+execIterationStmt :: IterationStmt -> ES ()
 execIterationStmt (StmtWhile e s) = do
     (TBool v) <- evalExp e
     if v
@@ -297,7 +294,7 @@ execIterationStmt (StmtWhile e s) = do
         execCompoundStmt s
         execIterationStmt (StmtWhile e s)
       else
-        return Success
+        return ()
 execIterationStmt (StmtFor1 epre cond epost s) = do
     _ <- evalExp epre
     execIterationStmt $ StmtWhile cond (whileBody s epost) where
@@ -319,22 +316,22 @@ execIterationStmt (StmtFor8 s) =
     execIterationStmt $ StmtFor1 emptyExp emptyExp emptyExp s
 
 
-execReturnStmt :: Exp -> ES Status
+execReturnStmt :: Exp -> ES ()
 execReturnStmt e = do
     v <- evalExp e
     (env, store, fspec, _) <- lift get
     lift $ put $ (env, store, fspec, v)
-    return Success
+    return ()
 
 
-execDeclStmt :: Decl -> ES Status
+execDeclStmt :: Decl -> ES ()
 execDeclStmt d = execDecl d
 
 
-execStmt :: Stmt -> ES Status
+execStmt :: Stmt -> ES ()
 execStmt (StmtExp e) = do
-    evalExp e
-    return Success
+    _ <- evalExp e
+    return ()
 execStmt (StmtCompound s) = execCompoundStmt s
 execStmt (StmtSelection s) = execSelectionStmt s
 execStmt (StmtIteration s) = execIterationStmt s
@@ -368,7 +365,7 @@ setArgRefs (a:args) (v:vs) =
         return (rv:t)
 
 
-allocArgs :: [Arg] -> [DataType] -> ES Status
+allocArgs :: [Arg] -> [DataType] -> ES ()
 allocArgs args vs = do
     refArgs <- setArgRefs args vs
     forceAllocVars (map extractId args) refArgs where
@@ -444,7 +441,7 @@ execFun (Ident fname) args = do
                   otherwise -> return retv'
 
 
-allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES Status
+allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES ()
 allocFun (Ident id) t args stmt = do
     (env, store, fspec, retv) <- lift get
     loc <- lift.lift $ newLoc store
@@ -456,31 +453,28 @@ allocFun (Ident id) t args stmt = do
                     Map.insert loc (TFun (Ident id)) store,
                     Map.insert loc (t, args, stmt) fspec,
                     retv)
-    return Success
+    return ()
 
 
-execFunctionDef :: FunctionDef -> ES Status
+execFunctionDef :: FunctionDef -> ES ()
 execFunctionDef (FunctionArgsP t id args cstmt) = do
     allocFun id t args cstmt
-    return Success
 execFunctionDef (FunctionArgs t id args stmt) = do
     allocFun id t args (StmtCompoundList [stmt])
-    return Success
 execFunctionDef (FunctionProcP t id cstmt) = execFunctionDef (FunctionArgsP t id [] cstmt)
 execFunctionDef (FunctionProc t id stmt) = execFunctionDef (FunctionArgs t id [] stmt)
 
 
 -- Main program
 
-execExternalDecl :: ExternalDecl -> ES Status
+execExternalDecl :: ExternalDecl -> ES ()
 execExternalDecl (GlobalFunction f) = (execFunctionDef f)
 execExternalDecl (GlobalDecl d) = (execDecl d)
 
 
-execTranslationUnit :: TranslationUnit -> ES Status
+execTranslationUnit :: TranslationUnit -> ES ()
 execTranslationUnit (Program externalDecl) = do
     mapM_ execExternalDecl externalDecl
-    return Success
 
 
 runFile :: Verbosity -> FilePath -> IO ()

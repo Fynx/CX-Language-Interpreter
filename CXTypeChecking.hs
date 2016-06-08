@@ -183,7 +183,7 @@ ctExp (ExpDiv e1 e2) = canAExp2 Div e1 e2
 ctExp (ExpMod e1 e2) = canAExp2 Mod e1 e2
 ctExp (ExpUnaryInc e) = canAExp UInc e
 ctExp (ExpUnaryDec e) = canAExp UDec e
-ctExp (ExpPostInc uop e) = canAExp PInc e
+ctExp (ExpPostInc uop e) = canAExp PInc e --TODO fix it it's something else
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
     (env, _, fspec, _) <- lift get
