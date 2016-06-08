@@ -1,0 +1,13 @@
+Int f(Int a, String b)
+{
+	return "Success";
+}
+
+Int main()
+{
+	Int a, b;
+
+	f(a, b);
+
+	return 0;
+}

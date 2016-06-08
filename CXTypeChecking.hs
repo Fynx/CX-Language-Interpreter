@@ -297,10 +297,7 @@ makeEmptyExp = ExpConstant $ ExpBool ConstantTrue
 
 ctStmt :: Stmt -> TES ()
 ctStmt (StmtExp e) = do
-    (env, tstore, fspec, _) <- lift get
     _ <- ctExp e
-    (_, _, _, rtype) <- lift get
-    lift $ put (env, tstore, fspec, rtype)
     return ()
 ctStmt (StmtCompound stmt) = ctCompoundStmt stmt
 ctStmt (StmtSelection stmt) = ctSelectionStmt stmt
@@ -312,7 +309,10 @@ ctStmt (StmtDecl d) = ctDecl d
 ctCompoundStmt :: CompoundStmt -> TES ()
 ctCompoundStmt (StmtCompoundEmpty) = return ()
 ctCompoundStmt (StmtCompoundList stmts) = do
+    (env, tstore, fspec, _) <- lift get
     mapM_ ctStmt stmts
+    (_, _, _, rtype) <- lift get
+    lift $ put (env, tstore, fspec, rtype)
     return ()
 
 ctSelectionStmt :: SelectionStmt -> TES ()
@@ -372,11 +372,11 @@ ctFunction (id, loc) = do
     (env, tstore, fspec, _) <- lift get
     case Map.lookup loc fspec of
       Nothing -> do
-        liftIO $ putStrLn $ "Not a function: '" ++ showId id ++ "'"
+--        liftIO $ putStrLn $ "Not a function: '" ++ showId id ++ "'"
         return () -- Not a function
       Just (ts, args, stmt) -> do
-        liftIO $ putStrLn $ "Check function '" ++ showId id ++ "' with type " ++ showTS ts ++
-                            " and args " ++ show args ++ "\n"
+--        liftIO $ putStrLn $ "Check function '" ++ showId id ++ "' with type " ++ showTS ts ++
+--                            " and args " ++ show args ++ "\n"
         _ <- forceAllocVarsT (argsIds args) (argsTS args)
         _ <- ctCompoundStmt stmt
         (_, _, _, rtype) <- lift get
@@ -397,7 +397,7 @@ ctFunction (id, loc) = do
 
 checkTypes :: TranslationUnit -> TES ()
 checkTypes tu = do
-    (env, _, _, _) <- lift get
     ctTranslationUnit tu
+    (env, _, _, _) <- lift get
     mapM_ ctFunction (Map.assocs env)
     return ()

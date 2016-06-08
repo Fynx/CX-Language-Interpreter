@@ -7,7 +7,6 @@ Void f(Int a)
 
 Int main()
 {
-	print("Variable shadowing test");
 
 	print("Global variable a = ", a);
 	

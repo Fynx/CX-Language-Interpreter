@@ -1,0 +1,8 @@
+Int main()
+{
+	String s = "123123a";
+
+	print("value = ", stringToInt(s));
+
+	return 0;
+}

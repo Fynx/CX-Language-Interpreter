@@ -1,3 +1,5 @@
+#SHELL=bash
+
 all:
 	cp EBNF/CX.cf .
 	bnfc -haskell CX.cf
@@ -10,6 +12,9 @@ test: all
 	./interpreter test/testProg.cx
 	./interpreter test/testBuiltinFunctions.cx
 	./interpreter test/testVariableShadowing.cx
+	./interpreter test/recursiveFunction.cx
+	- ./interpreter test/bad/internalFunctionArg.cx
+	- ./interpreter test/bad/incorrectFunctionArgs.cx
 
 clean:
 	rm -rf *.{cf,x,y}

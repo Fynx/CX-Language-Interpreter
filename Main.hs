@@ -496,7 +496,7 @@ run v s = do
         res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
         case res of
           (Left e, _) -> do
-            putStrLn $ "Type checking error:\n" ++ e
+            putStrLn $ "Type error:\n" ++ e
             exitFailure
           (Right r, _) -> return ()
 
@@ -519,13 +519,13 @@ run v s = do
                   (Right r, (env, store, fspec, retv)) ->
                     case r of
                       (TInt 0) -> do
-                        putStrLn "Program successfully finished."
+                        putStrLn "Program successfully finished.\n"
                         exitSuccess
                       (TInt k) -> do
-                        putStrLn $ "Program finished with error code " ++ (show k) ++ "."
+                        putStrLn $ "Program finished with error code " ++ (show k) ++ ".\n"
                         exitWith $ ExitFailure (fromIntegral k)
                       otherwise -> do
-                        putStrLn $ "Program finished with invalid return value."
+                        putStrLn $ "Program finished with invalid return value.\n"
                         exitFailure
 
 
