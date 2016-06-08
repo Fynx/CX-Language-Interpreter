@@ -1,0 +1,10 @@
+Int f(String a, String b)
+{
+	print(a, " ", b);
+	return 0;
+}
+
+Int Main()
+{
+	return f("Type", "checking", "failed");
+}

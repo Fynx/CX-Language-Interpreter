@@ -70,11 +70,6 @@ evalExp' e f = do
 
 evalExp'' :: Exp -> Exp -> (DataType -> DataType -> DataType) -> ES DataType
 evalExp'' e1 e2 f = evalExpSafe'' e1 e2 f (\_ _ -> return ())
---    v1 <- evalExp e1
---    v2 <- evalExp e2
---    ev1 <- unref v1
---    ev2 <- unref v2
---    return $ f ev1 ev2
 
 
 -- evalExp with checking the arguments
@@ -128,8 +123,6 @@ evalPostfix e f = do
       otherwise ->
         throwError $ "Expression " ++ (show e) ++ " is not an lvalue"
 
-
---TODO catch Error
 
 evalExp :: Exp -> ES DataType
 evalExp (ExpAssign e1 op e2) = do
@@ -316,7 +309,6 @@ cleanupVars = do
 
 -- Statements
 
-
 execCompoundStmt :: CompoundStmt -> ES ()
 execCompoundStmt (StmtCompoundList l) = do
     (env, store, fspec, _) <- lift get
@@ -484,7 +476,7 @@ execFun (Ident fname) args = do
             if length argl /= length args
               then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
               else allocArgs argl args
-            execCompoundStmt stmt -- TODO var cover/alloc
+            execCompoundStmt stmt
             (env', store', fspec', retv') <- lift get
             lift $ put (env, store', fspec, TVoid)
             _ <- cleanupVars
@@ -567,7 +559,7 @@ run v s = do
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
-            putStrLn $ "Runtime error: " ++ e
+            putStrLn $ "Runtime error:\n" ++ e
             exitFailure
           (Right r, (env, store, fspec, retv)) -> do
             putStrLnV v "Execute main program...\n"

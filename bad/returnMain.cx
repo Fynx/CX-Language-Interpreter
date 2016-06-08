@@ -1,0 +1,4 @@
+Int main()
+{
+	print("Type checking failed!");
+}

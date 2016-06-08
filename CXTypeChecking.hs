@@ -244,17 +244,20 @@ ctExp (ExpConstant c) = ctExpConstant c where
 
 
 canAExp :: Operation -> Exp -> TES TypeSpec
-canAExp op e = do {
-    ts <- ctExp e;
+canAExp op e = do
+    ts <- ctExp e
     canAF op ts
-    } `catchError` ((\e err -> throwError $ show err ++ "In expression " ++ show e) e)
+-- That was intended to be here, along with nice function for printing expression trees...
+-- That would be an actual help while debugging the program, but it's not the case right now.
+--} `catchError` ((\e err -> throwError $ show err ++ "In expression " ++ show e) e)
 
 
 canAExp2 :: Operation -> Exp -> Exp -> TES TypeSpec
 canAExp2 op e1 e2 = do
     ts1 <- ctExp e1
     ts2 <- ctExp e2
-    canAF2 op ts1 ts2 --TODO catch error
+    canAF2 op ts1 ts2
+--} `catchError` ((\e1 e2 err -> throwError $ show err ++ "In expressions\n" ++ show e1 ++ "\n" ++ show e2) e1 e2)
 
 
 canAF :: Operation -> TypeSpec -> TES TypeSpec
@@ -305,8 +308,6 @@ makeEmptyExp = ExpConstant $ ExpBool ConstantTrue
 
 -- Statements
 
-
---TODO catch errors as they go out
 
 ctStmt :: Stmt -> TES ()
 ctStmt (StmtExp e) = do {
