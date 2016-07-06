@@ -1,4 +1,4 @@
-CX Language Interpreter - Piotr Majcherczyk
+CX Language Interpreter
 ===========================================
 
 ### Instalacja
