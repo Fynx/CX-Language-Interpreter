@@ -104,5 +104,5 @@ defaultValue TypeString = (TString "")
 
 type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
-type FSpec = Map.Map Loc (TypeSpec, [Arg], CompoundStmt)
+type FEnv = Map.Map Loc (TypeSpec, [Arg], CompoundStmt, Env)
 type RetV = DataType

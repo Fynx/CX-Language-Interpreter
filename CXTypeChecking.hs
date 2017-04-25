@@ -26,7 +26,7 @@ import ErrM
 type TStore = Map.Map Loc TypeSpec
 type RetType = TypeSpec
 
-type TypeCont = (Env, TStore, FSpec, RetType)
+type TypeCont = (Env, TStore, FEnv, RetType)
 
 type TES a = ExceptT String (StateT TypeCont (IO)) a
 
@@ -55,7 +55,7 @@ ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stm
 
 allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
 allocFunT (Ident id) t args stmt = do
-    (env, tstore, fspec, rtype) <- lift get
+    (env, tstore, fenv, rtype) <- lift get
     loc <- lift.lift $ newTLoc tstore
     if Map.member (Ident id) env
       then
@@ -63,7 +63,7 @@ allocFunT (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc t tstore,
-                    Map.insert loc (t, args, stmt) fspec,
+                    Map.insert loc (t, args, stmt, env) fenv,
                     rtype)
     return ()
 
@@ -89,9 +89,9 @@ newTLoc s =
 
 doAllocVarT :: Ident -> TypeSpec -> TES ()
 doAllocVarT (Ident id) t = do
-    (env, tstore, fspec, rtype) <- lift get
+    (env, tstore, fenv, rtype) <- lift get
     loc <- lift.lift $ newTLoc tstore
-    lift $ put (Map.insert (Ident id) loc env, Map.insert loc t tstore, fspec, rtype)
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc t tstore, fenv, rtype)
     return ()
 
 
@@ -193,7 +193,7 @@ ctExp (ExpUnaryOp uop e) = ctExpUnaryOp uop e where
     ctExpUnaryOp OpUnaryFlp e = canAExp UFlp e
 ctExp (ExpFuncP e) = ctExp (ExpFuncPArgs e [])
 ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
-    (env, _, fspec, _) <- lift get
+    (env, _, fenv, _) <- lift get
     argts <- mapM ctExp args
     case Map.lookup id env of
       Nothing -> do
@@ -217,9 +217,9 @@ ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
               otherwise -> throwError $ "Invalid argument of function 'stringToBool'"
           otherwise -> throwError $ "Cannot find a function '" ++ showId id ++ "'"
       Just loc -> do
-        case Map.lookup loc fspec of
+        case Map.lookup loc fenv of
           Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
-          Just (ts, rargs, _) -> do
+          Just (ts, rargs, _, _) -> do
             let rargts = map extractType rargs
             if compareArrays argts rargts
               then return ts
@@ -247,7 +247,7 @@ canAExp :: Operation -> Exp -> TES TypeSpec
 canAExp op e = do
     ts <- ctExp e
     canAF op ts
--- That was intended to be here, along with nice function for printing expression trees...
+-- That was intended to be here, along with a nice function for printing expression trees...
 -- That would be an actual help while debugging the program, but it's not the case right now.
 --} `catchError` ((\e err -> throwError $ show err ++ "In expression " ++ show e) e)
 
@@ -324,10 +324,10 @@ ctStmt (StmtDecl d) = ctDecl d
 ctCompoundStmt :: CompoundStmt -> TES ()
 ctCompoundStmt (StmtCompoundEmpty) = return ()
 ctCompoundStmt (StmtCompoundList stmts) = do
-    (env, tstore, fspec, _) <- lift get
+    (env, tstore, fenv, _) <- lift get
     mapM_ ctStmt stmts
     (_, _, _, rtype) <- lift get
-    lift $ put (env, tstore, fspec, rtype)
+    lift $ put (env, tstore, fenv, rtype)
     return ()
 
 ctSelectionStmt :: SelectionStmt -> TES ()
@@ -374,8 +374,8 @@ ctIterationStmt (StmtFor8 stmt) =
 ctReturnStmt :: Exp -> TES ()
 ctReturnStmt e = do
     rtype <- ctExp e
-    (env, tstore, fspec, _) <- lift get
-    lift $ put $ (env, tstore, fspec, rtype)
+    (env, tstore, fenv, _) <- lift get
+    lift $ put $ (env, tstore, fenv, rtype)
     return ()
 
 
@@ -384,15 +384,16 @@ ctReturnStmt e = do
 
 ctFunction :: (Ident, Loc) -> TES ()
 ctFunction (id, loc) = do
-    (env, tstore, fspec, _) <- lift get
-    case Map.lookup loc fspec of
+    (env, tstore, fenv, _) <- lift get
+    case Map.lookup loc fenv of
       Nothing -> do
         return ()
-      Just (ts, args, stmt) -> do
+      Just (ts, args, stmt, envf) -> do
+        lift $ put (envf, tstore, fenv, TypeVoid)
         _ <- forceAllocVarsT (argsIds args) (argsTS args)
         _ <- ctCompoundStmt stmt
         (_, _, _, rtype) <- lift get
-        lift $ put $ (env, tstore, fspec, TypeVoid)
+        lift $ put (env, tstore, fenv, TypeVoid)
         if rtype == ts
           then return ()
           else throwError $ "Invalid return value of function " ++ showId id ++

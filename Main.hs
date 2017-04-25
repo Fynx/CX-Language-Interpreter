@@ -48,7 +48,7 @@ type ES a = ExceptT String (StateT Cont (IO)) a
 type ParseFun a = [Token] -> Err a
 
 
-type Cont = (Env, Store, FSpec, RetV)
+type Cont = (Env, Store, FEnv, RetV)
 
 emptyCont :: Cont
 emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
@@ -200,9 +200,9 @@ newLoc s =
 
 doAllocVar :: Ident -> DataType -> ES ()
 doAllocVar (Ident id) v = do
-    (env, store, fspec, retv) <- lift get
+    (env, store, fenv, retv) <- lift get
     loc <- lift.lift $ newLoc store
-    lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fspec, retv)
+    lift $ put (Map.insert (Ident id) loc env, Map.insert loc v store, fenv, retv)
     return ()
 
 
@@ -278,7 +278,7 @@ applyToVar id f = do
     return v'
 
 
--- These functions is supposed to be called with lists of exact same length.
+-- These functions are supposed to be called with lists of exact same length.
 allocVars :: [Ident] -> [DataType] -> ES ()
 allocVars [] [] = return ()
 allocVars (id:ids) (v:vs) = do
@@ -305,16 +305,16 @@ execDecl (DeclDefine t i e) = do
     v <- evalExp e
     allocVar i v
 
-
+--TODO need to check/update
 -- Removes the values in store that are no longer in env
 -- i.e allocations within compound statements
 -- In case of chain function invocation (as in recursion)
 -- cleans also the necessary values, need to remember about this
 cleanupVars :: ES ()
 cleanupVars = do
-    (env, store, fspec, retv) <- lift get
+    (env, store, fenv, retv) <- lift get
     let store' = foldl (flip Map.delete) store (Map.elems env)
-    lift $ put (env, Map.difference store store', fspec, retv)
+    lift $ put (env, Map.difference store store', fenv, retv)
 
 
 -- Statements
@@ -323,14 +323,14 @@ cleanupVars = do
 -- It's possible to allocate variables inside, they're cleaned afterwards
 execCompoundStmt :: CompoundStmt -> ES ()
 execCompoundStmt (StmtCompoundList l) = do
-    (env, store, fspec, _) <- lift get
+    (env, store, fenv, _) <- lift get
     mapM_ execStmt l
     (_, store', _, retv) <- lift get
-    lift $ put (env, store', fspec, retv)
-    cleanupVars
-    (env'', store'', fspec'', retv'') <- lift get
+    lift $ put (env, store', fenv, retv)
+    --cleanupVars --TODO
+    (_, store'', _, _) <- lift get
     -- We have to do this because of cleanup
-    lift $ put (env'', Map.union store'' store, fspec'', retv'')
+    lift $ put (env, store'', fenv, retv)
 execCompoundStmt StmtCompoundEmpty = return ()
 
 
@@ -381,8 +381,8 @@ execIterationStmt (StmtFor8 s) =
 execReturnStmt :: Exp -> ES ()
 execReturnStmt e = do
     v <- evalExp e
-    (env, store, fspec, _) <- lift get
-    lift $ put $ (env, store, fspec, v)
+    (env, store, fenv, _) <- lift get
+    lift $ put $ (env, store, fenv, v)
     return ()
 
 
@@ -391,6 +391,7 @@ execDeclStmt d = execDecl d
 
 
 execStmt :: Stmt -> ES ()
+--TODO cleaner
 execStmt (StmtExp e) = do
     _ <- evalExp e
     return ()
@@ -480,25 +481,24 @@ execBuiltinFun (Ident s) args =
         singleValue _ = return TVoid
 
 
+--TODO
 execFun :: Ident -> [DataType] -> ES DataType
 execFun (Ident fname) args = do
-    (env, store, fspec, _) <- lift get
+    (env, store, fenv, retv) <- lift get
     case Map.lookup (Ident fname) env of
       Nothing   -> execBuiltinFun (Ident fname) args
       Just floc -> do
-        case Map.lookup floc fspec of
+        case Map.lookup floc fenv of
           Nothing -> throwError $ "Internal error: function '" ++ fname ++ "'"
-          Just (rType, argl, stmt) -> do
+          Just (rType, argl, stmt, envf) -> do
             if length argl /= length args
               then throwError $ "Invalid number of parameters. " ++ fname ++ " " ++ (show argl)
-              else allocArgs argl args
+              else lift $ put (envf, store, fenv, retv)
+            allocArgs argl args
             execCompoundStmt stmt
-            (env', store', fspec', retv') <- lift get
-            lift $ put (env, store', fspec, TVoid)
-            _ <- cleanupVars
-            (env'', store'', fspec'', retv'') <- lift get
-            -- We have to do this, because of cleanup
-            lift $ put (env'', Map.union store'' store, fspec'', retv'')
+            -- TODO do the cleanup of variables
+            (_, store', _, retv') <- lift get
+            lift $ put (env, store', fenv, TVoid)
             case rType of
               (TypeVoid) -> return TVoid
               otherwise  ->
@@ -509,7 +509,7 @@ execFun (Ident fname) args = do
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES ()
 allocFun (Ident id) t args stmt = do
-    (env, store, fspec, retv) <- lift get
+    (env, store, fenv, retv) <- lift get
     loc <- lift.lift $ newLoc store
     if Map.member (Ident id) env
       then
@@ -517,12 +517,11 @@ allocFun (Ident id) t args stmt = do
       else
         lift $ put (Map.insert (Ident id) loc env,
                     Map.insert loc (TFun (Ident id)) store,
-                    Map.insert loc (t, args, stmt) fspec,
+                    Map.insert loc (t, args, stmt, env) fenv,
                     retv)
     return ()
 
 
--- Only registers the function (type, id, args, body) in carried state
 execFunctionDef :: FunctionDef -> ES ()
 execFunctionDef (FunctionArgsP t id args cstmt) = do
     allocFun id t args cstmt
@@ -565,31 +564,32 @@ run v s = do
       Ok p -> do
         showTree v p
 
-        putStrLnV v "Running type checking."
+        putStrLnV v "Skipping type checking."
+{-      putStrLnV v "Running type checking."
         res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
         case res of
           (Left e, _) -> do
             putStrLn $ "Type error:\n" ++ e
             exitFailure
           (Right r, _) -> return ()
-
+          -}
         putStrLnV v "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of
           (Left e, _) -> do
             putStrLn $ "Runtime error:\n" ++ e
             exitFailure
-          (Right r, (env, store, fspec, retv)) -> do
+          (Right r, (env, store, fenv, retv)) -> do
             putStrLnV v "Execute main program...\n"
             case Map.lookup (Ident "main") env of
               Nothing -> print "'main' function not found."
               Just _  -> do
-                res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fspec, retv)
+                res <- runStateT (runExceptT $ execFun (Ident "main") []) (env, store, fenv, retv)
                 case res of
                   (Left e, _) -> do
                     putStrLn $ "Runtime error: " ++ e
                     exitFailure
-                  (Right r, (env, store, fspec, retv)) ->
+                  (Right r, (env, store, fenv, retv)) ->
                     case r of
                       (TInt 0) -> do
                         putStrLnV v "Program successfully finished.\n"
