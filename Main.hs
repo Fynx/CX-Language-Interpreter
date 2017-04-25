@@ -564,15 +564,14 @@ run v s = do
       Ok p -> do
         showTree v p
 
-        putStrLnV v "Skipping type checking."
-{-      putStrLnV v "Running type checking."
+        putStrLnV v "Running type checking."
         res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
         case res of
           (Left e, _) -> do
             putStrLn $ "Type error:\n" ++ e
             exitFailure
           (Right r, _) -> return ()
-          -}
+
         putStrLnV v "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
         case res of

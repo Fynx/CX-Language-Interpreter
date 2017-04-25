@@ -46,11 +46,39 @@ ctExternalDecl (GlobalDecl d) = ctDecl d
 
 ctFunctionDef :: FunctionDef -> TES ()
 ctFunctionDef (FunctionArgsP ts id args cstmt) =
-    allocFunT id ts args cstmt
+    allocFunT id ts args cstmt >> ctFunction id
 ctFunctionDef (FunctionArgs ts id args stmt) =
-    allocFunT id ts args (StmtCompoundList [stmt])
+    allocFunT id ts args (StmtCompoundList [stmt]) >> ctFunction id
 ctFunctionDef (FunctionProcP t id cstmt) = ctFunctionDef (FunctionArgsP t id [] cstmt)
 ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stmt)
+
+
+ctFunction :: Ident -> TES ()
+ctFunction id = do
+    (env, tstore, fenv, _) <- lift get
+    case Map.lookup id env of
+      Nothing -> return ()
+      Just loc -> do
+        case Map.lookup loc fenv of
+          Nothing -> return ()
+          Just (ts, args, stmt, envf) -> do
+            lift $ put (envf, tstore, fenv, TypeVoid)
+            _ <- forceAllocVarsT (argsIds args) (argsTS args)
+            _ <- ctCompoundStmt stmt
+            (_, _, _, rtype) <- lift get
+            lift $ put (env, tstore, fenv, TypeVoid)
+            if rtype == ts
+              then return ()
+              else throwError $ "Invalid return value of function " ++ showId id ++
+                                "\n  Expected type: " ++ showTS ts ++ "\n  Actual type:   " ++
+                                showTS rtype
+            where
+                argsIds [] = []
+                argsIds ((ArgVal ts id):args) = id : argsIds args
+                argsIds ((ArgRef ts id):args) = id : argsIds args
+                argsTS [] = []
+                argsTS ((ArgVal ts id):args) = ts : argsTS args
+                argsTS ((ArgRef ts id):args) = ts : argsTS args
 
 
 allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
@@ -382,35 +410,6 @@ ctReturnStmt e = do
 -- Functions
 
 
-ctFunction :: (Ident, Loc) -> TES ()
-ctFunction (id, loc) = do
-    (env, tstore, fenv, _) <- lift get
-    case Map.lookup loc fenv of
-      Nothing -> do
-        return ()
-      Just (ts, args, stmt, envf) -> do
-        lift $ put (envf, tstore, fenv, TypeVoid)
-        _ <- forceAllocVarsT (argsIds args) (argsTS args)
-        _ <- ctCompoundStmt stmt
-        (_, _, _, rtype) <- lift get
-        lift $ put (env, tstore, fenv, TypeVoid)
-        if rtype == ts
-          then return ()
-          else throwError $ "Invalid return value of function " ++ showId id ++
-                            "\n  Expected type: " ++ showTS ts ++ "\n  Actual type:   " ++
-                            showTS rtype
-        where
-            argsIds [] = []
-            argsIds ((ArgVal ts id):args) = id : argsIds args
-            argsIds ((ArgRef ts id):args) = id : argsIds args
-            argsTS [] = []
-            argsTS ((ArgVal ts id):args) = ts : argsTS args
-            argsTS ((ArgRef ts id):args) = ts : argsTS args
-
 
 checkTypes :: TranslationUnit -> TES ()
-checkTypes tu = do
-    ctTranslationUnit tu
-    (env, _, _, _) <- lift get
-    mapM_ ctFunction (Map.assocs env)
-    return ()
+checkTypes = ctTranslationUnit
