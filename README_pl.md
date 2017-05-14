@@ -24,16 +24,6 @@ Język podobny do C, z pewnymi estetycznymi i praktycznymi różnicami.
 * Nie ma typów wskaźnikowych
 
 
-### Różnice w stosunku do oryginalnej gramatyki
-
-* Znaczne uproszczenie wyrażeń
-* Usunięcie i tak nieużywanych operatorów wskaźnikowych
-* Pomysł z oddzielaniem instrukcji z pomocą specjalnego symbolu 'newline' wstawianego
-  po preprocessingu kodu zamiast znaku nowej linii okazał się zbyt uciążliwy w implementacji
-* Z powrotem zostały dodane nawiasy przy wywołaniach funkcji, ze względu na poważniejsze
-  konflikty parsera
-
-
 ### Wymagania projektowe
 
 * typy - Int, String, Bool
@@ -73,6 +63,12 @@ poprawnego programu musi zwracać 0. Jest to sprawdzane już na poziomie typów.
 * Funkcje konwersji String na Bool/Int i z powrotem
 * Funkcja print (Uwaga: zmienne logiczne są celowo wypisywane haskellowo "True", "False",
   podczas gdy w języku stałe logiczne to _true_ i _false_)
+
+
+### Dodatkowe funkcjonalności (jeszcze nie zaimplementowane)
+* Przekazywanie funkcji jako argument
+* Krotki jako typy danych
+* Funkcje jako wynik funkji
 
 
 ### Pliki
