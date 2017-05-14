@@ -53,6 +53,20 @@ ctFunctionDef (FunctionProcP t id cstmt) = ctFunctionDef (FunctionArgsP t id [] 
 ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stmt)
 
 
+allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
+allocFunT (Ident id) t args stmt = do
+    (env, tstore, fenv, rtype) <- lift get
+    loc <- lift.lift $ newTLoc tstore
+    if Map.member (Ident id) env
+      then
+        throwError $ "Cannot create function '" ++ id ++ "', name already exists."
+      else let
+        env' = Map.insert (Ident id) loc env
+        tstore' = Map.insert loc t tstore
+        fenv' = Map.insert loc (t, args, stmt, env') fenv in
+          lift $ put (env', tstore', fenv', rtype)
+
+
 ctFunction :: Ident -> TES ()
 ctFunction id = do
     (env, tstore, fenv, _) <- lift get
@@ -79,21 +93,6 @@ ctFunction id = do
                 argsTS [] = []
                 argsTS ((ArgVal ts id):args) = ts : argsTS args
                 argsTS ((ArgRef ts id):args) = ts : argsTS args
-
-
-allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
-allocFunT (Ident id) t args stmt = do
-    (env, tstore, fenv, rtype) <- lift get
-    loc <- lift.lift $ newTLoc tstore
-    if Map.member (Ident id) env
-      then
-        throwError $ "Cannot create function '" ++ id ++ "', name already exists."
-      else
-        lift $ put (Map.insert (Ident id) loc env,
-                    Map.insert loc t tstore,
-                    Map.insert loc (t, args, stmt, env) fenv,
-                    rtype)
-    return ()
 
 
 ctDecl :: Decl -> TES ()
@@ -405,9 +404,6 @@ ctReturnStmt e = do
     (env, tstore, fenv, _) <- lift get
     lift $ put $ (env, tstore, fenv, rtype)
     return ()
-
-
--- Functions
 
 
 

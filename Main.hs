@@ -514,11 +514,11 @@ allocFun (Ident id) t args stmt = do
     if Map.member (Ident id) env
       then
         throwError $ "Name " ++ id ++ " already exists."
-      else
-        lift $ put (Map.insert (Ident id) loc env,
-                    Map.insert loc (TFun (Ident id)) store,
-                    Map.insert loc (t, args, stmt, env) fenv,
-                    retv)
+      else let
+        env' = Map.insert (Ident id) loc env
+        store' = Map.insert loc (TFun (Ident id)) store
+        fenv' = Map.insert loc (t, args, stmt, env') fenv in
+          lift $ put $ (env', store', fenv', retv)
     return ()
 
 
