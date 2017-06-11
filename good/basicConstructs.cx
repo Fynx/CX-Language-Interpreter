@@ -28,6 +28,7 @@ Int main()
 		print(i);
 		i--;
 	}
+	print("");
 
 	return 0;
 }

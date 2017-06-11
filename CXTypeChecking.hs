@@ -26,9 +26,9 @@ import ErrM
 type TStore = Map.Map Loc TypeSpec
 type RetType = TypeSpec
 
-type TypeCont = (Env, TStore, FEnv, RetType)
+type TypeEnv = (Env, TStore, FEnv, RetType)
 
-type TES a = ExceptT String (StateT TypeCont (IO)) a
+type TES a = ExceptT String (StateT TypeEnv (IO)) a
 
 
 -- Declarations
@@ -46,25 +46,34 @@ ctExternalDecl (GlobalDecl d) = ctDecl d
 
 ctFunctionDef :: FunctionDef -> TES ()
 ctFunctionDef (FunctionArgsP ts id args cstmt) =
-    allocFunT id ts args cstmt >> ctFunction id
+    allocFunT False id ts args cstmt >> ctFunction id
 ctFunctionDef (FunctionArgs ts id args stmt) =
-    allocFunT id ts args (StmtCompoundList [stmt]) >> ctFunction id
+    allocFunT False id ts args (StmtCompoundList [stmt]) >> ctFunction id
 ctFunctionDef (FunctionProcP t id cstmt) = ctFunctionDef (FunctionArgsP t id [] cstmt)
 ctFunctionDef (FunctionProc t id stmt) = ctFunctionDef (FunctionArgs t id [] stmt)
 
 
-allocFunT :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
-allocFunT (Ident id) t args stmt = do
+allocFunT :: Bool -> Ident -> TypeSpec -> [Arg] -> CompoundStmt -> TES ()
+allocFunT force (Ident id) t args stmt = do
     (env, tstore, fenv, rtype) <- lift get
     loc <- lift.lift $ newTLoc tstore
-    if Map.member (Ident id) env
+    if (Map.member (Ident id) env) && (not force)
       then
         throwError $ "Cannot create function '" ++ id ++ "', name already exists."
       else let
         env' = Map.insert (Ident id) loc env
-        tstore' = Map.insert loc t tstore
+        tstore' = Map.insert loc (fdefinitionToType (t, args, stmt, env')) tstore
         fenv' = Map.insert loc (t, args, stmt, env') fenv in
           lift $ put (env', tstore', fenv', rtype)
+
+
+allocFunction :: Arg -> TES ()
+allocFunction (ArgFun rv args id) = do
+    allocFunT True id rv (map makeArg args) StmtCompoundEmpty where
+        makeArg :: TypeSpec -> Arg
+        makeArg (TypeFun r a) = (ArgFun r a (Ident ""))
+        makeArg t = ArgVal t (Ident "")
+allocFunction _ = return ()
 
 
 ctFunction :: Ident -> TES ()
@@ -78,6 +87,7 @@ ctFunction id = do
           Just (ts, args, stmt, envf) -> do
             lift $ put (envf, tstore, fenv, TypeVoid)
             _ <- forceAllocVarsT (argsIds args) (argsTS args)
+            mapM_ allocFunction args
             _ <- ctCompoundStmt stmt
             (_, _, _, rtype) <- lift get
             lift $ put (env, tstore, fenv, TypeVoid)
@@ -90,9 +100,11 @@ ctFunction id = do
                 argsIds [] = []
                 argsIds ((ArgVal ts id):args) = id : argsIds args
                 argsIds ((ArgRef ts id):args) = id : argsIds args
+                argsIds ((ArgFun ts ats id):args) = id : argsIds args
                 argsTS [] = []
                 argsTS ((ArgVal ts id):args) = ts : argsTS args
                 argsTS ((ArgRef ts id):args) = ts : argsTS args
+                argsTS ((ArgFun ts ats id):args) = ts : argsTS args
 
 
 ctDecl :: Decl -> TES ()
@@ -141,18 +153,32 @@ findLocT (Ident id) = do
         Just vloc -> return vloc
 
 
+fdefinitionToType :: (TypeSpec, [Arg], CompoundStmt, Env) -> TypeSpec
+fdefinitionToType (rv, args, _, _) =
+    TypeFun rv (map argExtractType args)
+
+
+argExtractType :: Arg -> TypeSpec
+argExtractType (ArgVal t _) = t
+argExtractType (ArgRef t _) = t
+argExtractType (ArgFun r a _) = (TypeFun r a)
+
+
+--        case Map.lookup loc fenv of
+--          Just t  -> return $ fdefinitionToType t
+
 findValT :: Loc -> TES TypeSpec
 findValT loc = do
-    (_, tstore, _, _) <- lift get
+    (_, tstore, fenv, _) <- lift get
     case Map.lookup loc tstore of
-        Nothing -> throwError $ "Internal error: location " ++ (show loc)
-        Just v  -> return v
+      Just v  -> return v
+      Nothing -> throwError $ "Internal error: location " ++ (show loc)
 
 
 findVarT :: Ident -> TES TypeSpec
 findVarT id = do
-     loc <- findLocT id
-     findValT loc
+    loc <- findLocT id
+    findValT loc
 
 
 allocVarsT :: [Ident] -> [TypeSpec] -> TES ()
@@ -247,14 +273,12 @@ ctExp (ExpFuncPArgs (ExpConstant (ExpId id)) args) = do
         case Map.lookup loc fenv of
           Nothing -> throwError $ "Internal error: cannot find a function '" ++ showId id ++ "'"
           Just (ts, rargs, _, _) -> do
-            let rargts = map extractType rargs
+            let rargts = map argExtractType rargs
             if compareArrays argts rargts
               then return ts
               else throwError $ "Arguments of function '" ++ showId id ++ "' do not match.\n" ++
                                 "  Expected types: " ++ show rargts ++ "\n  Actual types: " ++ show argts
             where
-                extractType (ArgVal t _) = t
-                extractType (ArgRef t _) = t
                 compareArrays [] [] = True
                 compareArrays l [] = False
                 compareArrays [] l = False

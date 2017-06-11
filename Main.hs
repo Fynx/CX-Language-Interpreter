@@ -43,14 +43,14 @@ showTree v tree = do
 
 -- Interpreter
 
-type ES a = ExceptT String (StateT Cont (IO)) a
+type ES a = ExceptT String (StateT FullEnv (IO)) a
 
 type ParseFun a = [Token] -> Err a
 
 
-type Cont = (Env, Store, FEnv, RetV)
+type FullEnv = (Env, Store, FEnv, RetV)
 
-emptyCont :: Cont
+emptyCont :: FullEnv
 emptyCont = (Map.empty, Map.empty, Map.empty, TVoid)
 
 
@@ -401,17 +401,13 @@ dataTypeToString (TString s) = return s
 dataTypeToString (TRef l) = do
     v <- findVal l
     dataTypeToString v
-dataTypeToString (TFun) = return $ "Function"
+dataTypeToString TFun = return "function" --"Function: " ++ show a ++ " -> " ++ show r
 
 
 setArgRef :: (Arg, DataType) -> ES DataType
 setArgRef ((ArgVal _ _), v) = unref v
 setArgRef ((ArgRef _ _), v) = return v
 setArgRef ((ArgFun _ _ _), v) = return v
-
-
-combineLists [] [] = []
-combineLists (x:xs) (y:ys) = (x, y) : combineLists xs ys
 
 
 allocArg :: (Ident, DataType) -> ES ()
@@ -421,6 +417,8 @@ allocArg (id, (TRef floc)) = do
 allocArg (id, v) = forceAllocVar id v
 
 
+-- Nested functions can be arguments: Int f(String <Bool, Int <String, String> &> g)
+-- the '&' after a function inside arg function is required
 allocArgs :: [Arg] -> [DataType] -> ES ()
 allocArgs args vs = do
     refs <- mapM setArgRef (combineLists args vs)
@@ -568,13 +566,13 @@ run v s = do
       Ok p -> do
         showTree v p
 
---        putStrLnV v "Running type checking."
---        res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
---        case res of
---          (Left e, _) -> do
---            putStrLn $ "Type error:\n" ++ e
---            exitFailure
---          (Right r, _) -> return ()
+        putStrLnV v "Running type checking."
+        res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
+        case res of
+          (Left e, _) -> do
+            putStrLn $ "Type error:\n" ++ e
+            exitFailure
+          (Right r, _) -> return ()
 
         putStrLnV v "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)

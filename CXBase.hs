@@ -28,7 +28,7 @@ data DataType =
     | TInt    Integer
     | TString String
     | TRef    Loc
-    | TFun
+    | TFun    --DataType [DataType]
     deriving (Show)
 
 
@@ -107,3 +107,7 @@ type Env = Map.Map Ident Loc
 type Store = Map.Map Loc DataType
 type FEnv = Map.Map Loc (TypeSpec, [Arg], CompoundStmt, Env)
 type RetV = DataType
+
+
+combineLists [] [] = []
+combineLists (x:xs) (y:ys) = (x, y) : combineLists xs ys

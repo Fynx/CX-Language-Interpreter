@@ -38,7 +38,7 @@ TypeBool.   TypeSpec ::= "Bool" ;
 TypeInt.    TypeSpec ::= "Int" ;
 TypeString. TypeSpec ::= "String" ;
 TypeVoid.   TypeSpec ::= "Void" ;
-TypeFun.    TypeSpec ::= TypeSpec "<"[TypeSpec]">" ;
+TypeFun.    TypeSpec ::= TypeSpec "<" [TypeSpec] ">" "&" ;
 
 (:[]). [TypeSpec] ::= TypeSpec ;
 (:).   [TypeSpec] ::= TypeSpec "," [TypeSpec] ;

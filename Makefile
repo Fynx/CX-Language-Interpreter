@@ -14,6 +14,7 @@ test_good: all
 	./interpreter good/recursiveFunction.cx
 	./interpreter good/operators.cx
 	./interpreter good/basicConstructs.cx
+	./interpreter good/argFunction.cx
 
 test_bad: all
 	- ./interpreter bad/badForLoop.cx
