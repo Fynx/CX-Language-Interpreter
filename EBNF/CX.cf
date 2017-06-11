@@ -27,6 +27,7 @@ FunctionProc.  FunctionDef ::= TypeSpec Ident "(" ")" Stmt ";" ;
 
 ArgVal. Arg ::= TypeSpec Ident ;
 ArgRef. Arg ::= TypeSpec "&" Ident ;
+ArgFun. Arg ::= TypeSpec "<" [TypeSpec] ">" Ident ;
 
 
 DeclDefault. Decl ::= TypeSpec [Ident] ";" ;
@@ -37,6 +38,10 @@ TypeBool.   TypeSpec ::= "Bool" ;
 TypeInt.    TypeSpec ::= "Int" ;
 TypeString. TypeSpec ::= "String" ;
 TypeVoid.   TypeSpec ::= "Void" ;
+TypeFun.    TypeSpec ::= TypeSpec "<"[TypeSpec]">" ;
+
+(:[]). [TypeSpec] ::= TypeSpec ;
+(:).   [TypeSpec] ::= TypeSpec "," [TypeSpec] ;
 
 
 (:[]). [Stmt] ::= Stmt ;

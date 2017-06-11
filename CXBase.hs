@@ -13,6 +13,7 @@ showTS TypeInt    = "Int"
 showTS TypeVoid   = "Void"
 showTS TypeString = "String"
 showTS TypeBool   = "Bool"
+showTS (TypeFun retval args) = "f(" ++ show retval ++ "->" ++ show args ++ ")"
 
 
 showId :: Ident -> String
@@ -27,7 +28,7 @@ data DataType =
     | TInt    Integer
     | TString String
     | TRef    Loc
-    | TFun    Ident
+    | TFun
     deriving (Show)
 
 

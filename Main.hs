@@ -176,8 +176,7 @@ evalExp (ExpConstant c) = evalConstantType c where
     evalConstantType :: Constant -> ES DataType
     evalConstantType (ExpId id) = do
         loc <- findLoc id
-        r <- flattenRef $ TRef loc
-        return r
+        return (TRef loc)
     evalConstantType (ExpInt v) = return $ TInt v
     evalConstantType (ExpBool ConstantTrue) = return $ TBool True
     evalConstantType (ExpBool ConstantFalse) = return $ TBool False
@@ -216,6 +215,9 @@ allocVar (Ident id) v = do
         doAllocVar (Ident id) v
 
 
+forceAllocVar = doAllocVar
+
+
 findLoc :: Ident -> ES Loc
 findLoc (Ident id) = do
     (env, _, _, _) <- lift get
@@ -239,21 +241,8 @@ findVar id = do
 
 
 unref :: DataType -> ES DataType
-unref (TRef loc) = do
-    v <- findVal loc
-    return v
-unref t = do
-    return t
-
-
--- Flattens the chain of references to one reference or returns the value
-flattenRef :: DataType -> ES DataType
-flattenRef (TRef loc) = do
-    v <- findVal loc
-    case v of
-      (TRef _)  -> flattenRef v
-      otherwise -> return $ TRef loc
-flattenRef t = return t
+unref (TRef loc) = findVal loc
+unref t = return t
 
 
 setVal :: Loc -> DataType -> ES ()
@@ -290,7 +279,7 @@ allocVars (id:ids) (v:vs) = do
 forceAllocVars :: [Ident] -> [DataType] -> ES ()
 forceAllocVars [] [] = return ()
 forceAllocVars (id:ids) (v:vs) = do
-    doAllocVar id v
+    forceAllocVar id v
     forceAllocVars ids vs
 
 
@@ -412,31 +401,38 @@ dataTypeToString (TString s) = return s
 dataTypeToString (TRef l) = do
     v <- findVal l
     dataTypeToString v
+dataTypeToString (TFun) = return $ "Function"
 
 
-setArgRefs :: [Arg] -> [DataType] -> ES [DataType]
-setArgRefs [] [] = return []
-setArgRefs (a:args) (v:vs) =
-    case a of
-      (ArgVal _ _) -> do
-        rv <- unref v
-        t <- setArgRefs args vs
-        return (rv:t)
-      (ArgRef _ _) -> do
-        rv <- flattenRef v
-        t <- setArgRefs args vs
-        return (rv:t)
+setArgRef :: (Arg, DataType) -> ES DataType
+setArgRef ((ArgVal _ _), v) = unref v
+setArgRef ((ArgRef _ _), v) = return v
+setArgRef ((ArgFun _ _ _), v) = return v
+
+
+combineLists [] [] = []
+combineLists (x:xs) (y:ys) = (x, y) : combineLists xs ys
+
+
+allocArg :: (Ident, DataType) -> ES ()
+allocArg (id, (TRef floc)) = do
+    (env, store, fenv, retv) <- lift get
+    lift $ put (Map.insert id floc env, store, fenv, retv)    
+allocArg (id, v) = forceAllocVar id v
 
 
 allocArgs :: [Arg] -> [DataType] -> ES ()
 allocArgs args vs = do
-    refArgs <- setArgRefs args vs
-    forceAllocVars (map extractId args) refArgs where
+    refs <- mapM setArgRef (combineLists args vs)
+    mapM_ allocArg (combineLists ids refs)
+    return ()
+      where
+        ids = map extractId args
         extractId (ArgVal _ id) = id
         extractId (ArgRef _ id) = id
+        extractId (ArgFun _ _ id) = id
 
 
--- It's ugly, but looks like it's difficult to escape those monads
 putStrValue :: DataType -> ES ()
 putStrValue v = do
     s <- dataTypeToString v
@@ -481,7 +477,6 @@ execBuiltinFun (Ident s) args =
         singleValue _ = return TVoid
 
 
---TODO
 execFun :: Ident -> [DataType] -> ES DataType
 execFun (Ident fname) args = do
     (env, store, fenv, retv) <- lift get
@@ -496,7 +491,6 @@ execFun (Ident fname) args = do
               else lift $ put (envf, store, fenv, retv)
             allocArgs argl args
             execCompoundStmt stmt
-            -- TODO do the cleanup of variables
             (_, store', _, retv') <- lift get
             lift $ put (env, store', fenv, TVoid)
             case rType of
@@ -505,6 +499,16 @@ execFun (Ident fname) args = do
                 case retv' of
                   TVoid     -> throwError $ "Failed to obtain return value from function: " ++ fname
                   otherwise -> return retv'
+
+
+argToTypeSpec :: Arg -> TypeSpec
+argToTypeSpec (ArgVal t _) = t
+argToTypeSpec (ArgRef t _) = t
+argToTypeSpec (ArgFun t ts _) = (TypeFun t ts)
+
+
+functionDefToType :: TypeSpec -> [Arg] -> TypeSpec
+functionDefToType t args = (TypeFun t (map argToTypeSpec args))
 
 
 allocFun :: Ident -> TypeSpec -> [Arg] -> CompoundStmt -> ES ()
@@ -516,7 +520,7 @@ allocFun (Ident id) t args stmt = do
         throwError $ "Name " ++ id ++ " already exists."
       else let
         env' = Map.insert (Ident id) loc env
-        store' = Map.insert loc (TFun (Ident id)) store
+        store' = Map.insert loc TFun store
         fenv' = Map.insert loc (t, args, stmt, env') fenv in
           lift $ put $ (env', store', fenv', retv)
     return ()
@@ -564,13 +568,13 @@ run v s = do
       Ok p -> do
         showTree v p
 
-        putStrLnV v "Running type checking."
-        res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
-        case res of
-          (Left e, _) -> do
-            putStrLn $ "Type error:\n" ++ e
-            exitFailure
-          (Right r, _) -> return ()
+--        putStrLnV v "Running type checking."
+--        res <- runStateT (runExceptT (checkTypes p)) (Map.empty, Map.empty, Map.empty, TypeVoid)
+--        case res of
+--          (Left e, _) -> do
+--            putStrLn $ "Type error:\n" ++ e
+--            exitFailure
+--          (Right r, _) -> return ()
 
         putStrLnV v "Collecting global names."
         res <- (runStateT (runExceptT $ execTranslationUnit p) emptyCont)
