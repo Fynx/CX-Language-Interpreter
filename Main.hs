@@ -294,17 +294,6 @@ execDecl (DeclDefine t i e) = do
     v <- evalExp e
     allocVar i v
 
---TODO need to check/update
--- Removes the values in store that are no longer in env
--- i.e allocations within compound statements
--- In case of chain function invocation (as in recursion)
--- cleans also the necessary values, need to remember about this
-cleanupVars :: ES ()
-cleanupVars = do
-    (env, store, fenv, retv) <- lift get
-    let store' = foldl (flip Map.delete) store (Map.elems env)
-    lift $ put (env, Map.difference store store', fenv, retv)
-
 
 -- Statements
 
@@ -316,9 +305,7 @@ execCompoundStmt (StmtCompoundList l) = do
     mapM_ execStmt l
     (_, store', _, retv) <- lift get
     lift $ put (env, store', fenv, retv)
-    --cleanupVars --TODO
     (_, store'', _, _) <- lift get
-    -- We have to do this because of cleanup
     lift $ put (env, store'', fenv, retv)
 execCompoundStmt StmtCompoundEmpty = return ()
 
@@ -380,10 +367,7 @@ execDeclStmt d = execDecl d
 
 
 execStmt :: Stmt -> ES ()
---TODO cleaner
-execStmt (StmtExp e) = do
-    _ <- evalExp e
-    return ()
+execStmt (StmtExp e) = evalExp e >> return ()
 execStmt (StmtCompound s) = execCompoundStmt s
 execStmt (StmtSelection s) = execSelectionStmt s
 execStmt (StmtIteration s) = execIterationStmt s

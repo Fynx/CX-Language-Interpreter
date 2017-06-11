@@ -164,9 +164,6 @@ argExtractType (ArgRef t _) = t
 argExtractType (ArgFun r a _) = (TypeFun r a)
 
 
---        case Map.lookup loc fenv of
---          Just t  -> return $ fdefinitionToType t
-
 findValT :: Loc -> TES TypeSpec
 findValT loc = do
     (_, tstore, fenv, _) <- lift get

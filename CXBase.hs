@@ -28,7 +28,7 @@ data DataType =
     | TInt    Integer
     | TString String
     | TRef    Loc
-    | TFun    --DataType [DataType]
+    | TFun
     deriving (Show)
 
 
