@@ -21,6 +21,7 @@ Język podobny do C, z pewnymi estetycznymi i praktycznymi różnicami.
 * W pętli _for_ wyrażenia oddzielone przecinkami
 * Wyrażenie po pętlach i warunkach jest *zawsze* otoczone klamrami
 * Parametry można przekazywać przez referencję '&'
+* Można przekazywać funkcje jako parametry (również zagnieżdżone)
 * Nie ma typów wskaźnikowych
 
 
@@ -28,13 +29,15 @@ Język podobny do C, z pewnymi estetycznymi i praktycznymi różnicami.
 
 * typy - Int, String, Bool
 * arytmetyka, porównania, cały szereg operatorów
+* przypisania (również C-style +=, etc)
 * pętle i wyrażenia warunkowe (_while_, _for_, _if_, _if-else_)
 * funkcje z rekurencją, zwracające wartość (albo i nie)
 * built-in functions: print, konwersja na/ze stringów
+* argumenty funkcji jako wartość lub referencja
 * przesłanianie i statyczne wiązanie
 * statyczne typowanie
-* obsługa błędów wykonania
-* argumenty funkcji jako wartość lub referencja
+* obsługa błędów wykonania (np. dzielenie przez 0)
+* funkcje jako argumenty
 
 
 ### Intepretacja wyrażeń
@@ -52,7 +55,8 @@ Type checking działa na wartościach, tzn. np. próba przypisania wartości typ
 typu Int zakończy się błędem wykonania, raczej niż błędem typów.
 
 Poza tym problemem, wszystko jest sprawdzane - instrukcje, wyrażenia, deklaracje globalne
-i lokalne, przesłanianie wartości argumentami funkcji.
+i lokalne, przesłanianie wartości argumentami funkcji, funkcje jako argumenty (a także
+funkcje będące argumentami przyjmujące funkcje jako argumenty - zagnieżdżone).
 
 Tak jak w C, działanie programu to wykonywanie funkcji main typu Int, która w przypadku
 poprawnego programu musi zwracać 0. Jest to sprawdzane już na poziomie typów.
@@ -63,12 +67,6 @@ poprawnego programu musi zwracać 0. Jest to sprawdzane już na poziomie typów.
 * Funkcje konwersji String na Bool/Int i z powrotem
 * Funkcja print (Uwaga: zmienne logiczne są celowo wypisywane haskellowo "True", "False",
   podczas gdy w języku stałe logiczne to _true_ i _false_)
-
-
-### Dodatkowe funkcjonalności (jeszcze nie zaimplementowane)
-* Przekazywanie funkcji jako argument
-* Krotki jako typy danych
-* Funkcje jako wynik funkji
 
 
 ### Pliki

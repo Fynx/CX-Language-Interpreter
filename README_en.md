@@ -18,19 +18,23 @@ Language similar to C, with certain number of aesthetical and practical differen
 * In _for_, _while_ and _if_ brackets '()' are not needed
 * In _for_ loop expressions are separated by commas ','
 * Expressions after loops and conditions are *always* surrounded by brackets '{}'
-* No pointer data types
+* No pointer data types, but params can be passed by reference '&'
+* Functions may be passed as parameters (also nested)
 
 
 ### Project requirements
 
 * datatypes - Int, String, Bool
 * arithmetics, comparisons, a whole lot of operators
+* assignment (also C-type +=, etc.) statements
 * loop and condition statements (_while_, _for_, _if_, _if-else_)
+* recursive functions, can return value or not (Void type)
 * built-in functions: print, to/from string conversion
+* arguments in functions as value or reference
 * variable shadowing and static binding
 * static typing
-* runtime error handling
-* arguments in functions as value or reference
+* runtime error handling (such as division by 0)
+* functions as arguments
 
 
 ### Expressions interpretation
@@ -48,7 +52,8 @@ Type checking is made to work on values; an attempt to assign value of type Int 
 will end up in a runtime error, rather than type error.
 
 Other than that, everything else is checked: instructions, expressions, global and local
-declarations, function arguments shadowing.
+declarations, function arguments shadowing, functions as arguments (also functions being
+arguments that take functions as arguments - nested).
 
 Just like in C, execution of the program starts in a function called 'main' of type
 Int.
@@ -58,13 +63,7 @@ Int.
 
 * String to/from Bool/Int conversion functions
 * 'print' function (Logical values are intentionally printed "True", "False", while
-  in the language logical constants are _true_ and _false)
-
-
-### Intended features (not yet implemented)
-* Passing functions as arguments
-* Tuples functioning as regular types
-* Functions as _return-value_
+  in the language logical constants are _true_ and _false_)
 
 
 ### Files
